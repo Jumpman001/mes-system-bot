@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Расход химии — MES</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            background: var(--tg-theme-bg-color, #0f172a);
+            color: var(--tg-theme-text-color, #e2e8f0);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        .input-field {
+            background: var(--tg-theme-secondary-bg-color, #1e293b);
+            color: var(--tg-theme-text-color, #e2e8f0);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .input-field:focus {
+            border-color: #8b5cf6;
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+            outline: none;
+        }
+
+        .label-text {
+            color: var(--tg-theme-hint-color, #94a3b8);
+        }
+
+        .success-overlay {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+        }
+
+        @keyframes checkmark {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+
+            50% {
+                transform: scale(1.2);
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .animate-check {
+            animation: checkmark 0.4s ease-out forwards;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen p-4">
+
+    <!-- Заголовок -->
+    <div class="text-center mb-6">
+        <div class="text-3xl mb-2">🧪</div>
+        <h1 class="text-xl font-bold">Расход химии</h1>
+        <p class="text-sm label-text mt-1">Фактический расход химических материалов</p>
+    </div>
+
+    <!-- Форма -->
+    <form id="dosingForm" class="space-y-4 max-w-md mx-auto">
+
+        <!-- Выбор трубы -->
+        <div>
+            <label class="block text-sm font-medium label-text mb-1.5">Труба</label>
+            <select id="pipe_id" required class="input-field w-full rounded-xl px-4 py-3 text-base appearance-none">
+                <option value="" disabled selected>Выберите трубу</option>
+                {% for pipe in pipes %}
+                <option value="{{ pipe.id }}">{{ pipe.serial_number }} ({{ pipe.status.value }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Стадия -->
+        <div>
+            <label class="block text-sm font-medium label-text mb-1.5">Стадия</label>
+            <select id="stage" required class="input-field w-full rounded-xl px-4 py-3 text-base appearance-none">
+                <option value="" disabled selected>Выберите стадию</option>
+                <option value="liner">Лайнер</option>
+                <option value="winder_fiberglass">Виндер — Стекловолокно</option>
+                <option value="winder_sand_1">Виндер — Песок 1</option>
+                <option value="winder_sand_2">Виндер — Песок 2</option>
+            </select>
+        </div>
+
+        <!-- Смола -->
+        <div>
+            <label class="block text-sm font-medium label-text mb-1.5">Смола (кг)</label>
+            <input type="number" id="resin_kg" step="0.01" min="0" required placeholder="0.00"
+                class="input-field w-full rounded-xl px-4 py-3 text-base">
+        </div>
+
+        <!-- Кобальт -->
+        <div>
+            <label class="block text-sm font-medium label-text mb-1.5">Октоат кобальта 12% (кг)</label>
+            <input type="number" id="cobalt_kg" step="0.001" min="0" required placeholder="0.000"
+                class="input-field w-full rounded-xl px-4 py-3 text-base">
+        </div>
+
+        <!-- Акперокс -->
+        <div>
+            <label class="block text-sm font-medium label-text mb-1.5">Акперокс (кг)</label>
+            <input type="number" id="peroxide_kg" step="0.001" min="0" required placeholder="0.000"
+                class="input-field w-full rounded-xl px-4 py-3 text-base">
+        </div>
+
+    </form>
+
+    <!-- Оверлей успеха -->
+    <div id="successOverlay" class="success-overlay fixed inset-0 flex items-center justify-center z-50 hidden">
+        <div class="text-center">
+            <div class="text-6xl animate-check">✅</div>
+            <p class="text-xl font-bold mt-4">Сохранено!</p>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        tg.MainButton.setText("СОХРАНИТЬ");
+        tg.MainButton.show();
+
+        const form = document.getElementById('dosingForm');
+        const overlay = document.getElementById('successOverlay');
+
+        tg.MainButton.onClick(async function () {
+            tg.MainButton.showProgress();
+
+            if (!form.reportValidity()) {
+                tg.MainButton.hideProgress();
+                return;
+            }
+
+            const telegramId = tg.initDataUnsafe?.user?.id;
+            if (!telegramId) {
+                tg.MainButton.hideProgress();
+                tg.HapticFeedback.notificationOccurred('error');
+                tg.showAlert('Ошибка: не удалось получить Telegram ID.');
+                return;
+            }
+
+            const data = {
+                pipe_id: parseInt(document.getElementById('pipe_id').value),
+                stage: document.getElementById('stage').value,
+                resin_kg: parseFloat(document.getElementById('resin_kg').value),
+                cobalt_kg: parseFloat(document.getElementById('cobalt_kg').value),
+                peroxide_kg: parseFloat(document.getElementById('peroxide_kg').value),
+                telegram_id: telegramId,
+            };
+
+            try {
+                const resp = await fetch('/api/dosing', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                });
+
+                if (!resp.ok) throw new Error(`Ошибка: ${resp.status}`);
+
+                tg.MainButton.hideProgress();
+                tg.HapticFeedback.notificationOccurred('success');
+                overlay.classList.remove('hidden');
+                setTimeout(() => tg.close(), 1200);
+
+            } catch (err) {
+                tg.MainButton.hideProgress();
+                tg.HapticFeedback.notificationOccurred('error');
+                tg.showAlert('Ошибка при сохранении данных!');
+            }
+        });
+    </script>
+</body>
+
+</html>

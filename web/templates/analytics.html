@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Аналитика — MES</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            background: var(--tg-theme-bg-color, #0f172a);
+            color: var(--tg-theme-text-color, #e2e8f0);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        .card {
+            background: var(--tg-theme-secondary-bg-color, #1e293b);
+            border: 1px solid rgba(148, 163, 184, 0.15);
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-green {
+            border-left: 4px solid #22c55e;
+        }
+
+        .card-red {
+            border-left: 4px solid #ef4444;
+        }
+
+        .card-amber {
+            border-left: 4px solid #f59e0b;
+        }
+
+        .card-blue {
+            border-left: 4px solid #3b82f6;
+        }
+
+        .table-row {
+            background: var(--tg-theme-secondary-bg-color, #1e293b);
+            border: 1px solid rgba(148, 163, 184, 0.1);
+        }
+
+        .table-row:hover {
+            background: rgba(148, 163, 184, 0.08);
+        }
+
+        .section-title {
+            border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+        }
+
+        .label-text {
+            color: var(--tg-theme-hint-color, #94a3b8);
+        }
+
+        .btn-close {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            transition: transform 0.1s, box-shadow 0.2s;
+        }
+
+        .btn-close:active {
+            transform: scale(0.97);
+        }
+
+        .btn-close:hover {
+            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.35);
+        }
+
+        .value-green {
+            color: #22c55e;
+        }
+
+        .value-red {
+            color: #ef4444;
+        }
+
+        .value-amber {
+            color: #f59e0b;
+        }
+
+        .value-blue {
+            color: #3b82f6;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        .animate-in:nth-child(2) {
+            animation-delay: 0.05s;
+        }
+
+        .animate-in:nth-child(3) {
+            animation-delay: 0.1s;
+        }
+
+        .animate-in:nth-child(4) {
+            animation-delay: 0.15s;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen p-4">
+
+    <!-- Заголовок -->
+    <div class="text-center mb-6">
+        <div class="text-3xl mb-2">📈</div>
+        <h1 class="text-xl font-bold">Оперативная сводка</h1>
+        <p class="text-sm label-text mt-1">Аналитика производства</p>
+    </div>
+
+    <!-- KPI Карточки -->
+    <div class="grid grid-cols-2 gap-3 max-w-md mx-auto mb-6">
+        <div class="card card-green rounded-xl p-4 animate-in">
+            <div class="text-2xl mb-1">🟢</div>
+            <div class="text-3xl font-bold value-green">{{ accepted }}</div>
+            <div class="text-xs label-text mt-1">Готовых труб</div>
+        </div>
+        <div class="card card-red rounded-xl p-4 animate-in">
+            <div class="text-2xl mb-1">🔴</div>
+            <div class="text-3xl font-bold value-red">{{ rejected }}</div>
+            <div class="text-xs label-text mt-1">Брак</div>
+        </div>
+        <div class="card card-amber rounded-xl p-4 animate-in">
+            <div class="text-2xl mb-1">⚙️</div>
+            <div class="text-3xl font-bold value-amber">{{ in_production }}</div>
+            <div class="text-xs label-text mt-1">В производстве</div>
+        </div>
+        <div class="card card-blue rounded-xl p-4 animate-in">
+            <div class="text-2xl mb-1">📊</div>
+            <div class="text-3xl font-bold value-blue">{{ total }}</div>
+            <div class="text-xs label-text mt-1">Всего труб</div>
+        </div>
+    </div>
+
+    <!-- Расход Химии -->
+    <div class="max-w-md mx-auto mb-5">
+        <p class="section-title text-sm font-semibold pb-2 mb-3" style="color: #a78bfa;">
+            🧪 Расход химии (суммарно)
+        </p>
+        <div class="space-y-2">
+            <div class="table-row rounded-lg px-4 py-3 flex justify-between items-center">
+                <span class="text-sm">Смола</span>
+                <span class="font-bold text-sm" style="color: #a78bfa;">{{ chemistry.resin_kg }} кг</span>
+            </div>
+            <div class="table-row rounded-lg px-4 py-3 flex justify-between items-center">
+                <span class="text-sm">Кобальт</span>
+                <span class="font-bold text-sm" style="color: #a78bfa;">{{ chemistry.cobalt_kg }} кг</span>
+            </div>
+            <div class="table-row rounded-lg px-4 py-3 flex justify-between items-center">
+                <span class="text-sm">Акперокс</span>
+                <span class="font-bold text-sm" style="color: #a78bfa;">{{ chemistry.peroxide_kg }} кг</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Расход Сухих материалов -->
+    <div class="max-w-md mx-auto mb-6">
+        <p class="section-title text-sm font-semibold pb-2 mb-3" style="color: #2dd4bf;">
+            🧵 Расход сухих материалов (суммарно)
+        </p>
+        <div class="space-y-2">
+            <div class="table-row rounded-lg px-4 py-3 flex justify-between items-center">
+                <span class="text-sm">Стекловолокно 2400tex</span>
+                <span class="font-bold text-sm" style="color: #2dd4bf;">{{ dry_materials.fiberglass_2400tex_kg }}
+                    кг</span>
+            </div>
+            <div class="table-row rounded-lg px-4 py-3 flex justify-between items-center">
+                <span class="text-sm">Песок</span>
+                <span class="font-bold text-sm" style="color: #2dd4bf;">{{ dry_materials.sand_kg }} кг</span>
+            </div>
+            <div class="table-row rounded-lg px-4 py-3 flex justify-between items-center">
+                <span class="text-sm">Полиэф. марля</span>
+                <span class="font-bold text-sm" style="color: #2dd4bf;">{{ dry_materials.polyester_gauze_m }} м</span>
+            </div>
+            <div class="table-row rounded-lg px-4 py-3 flex justify-between items-center">
+                <span class="text-sm">Вуаль</span>
+                <span class="font-bold text-sm" style="color: #2dd4bf;">{{ dry_materials.veil_m }} м</span>
+            </div>
+            <div class="table-row rounded-lg px-4 py-3 flex justify-between items-center">
+                <span class="text-sm">Сшитый мат</span>
+                <span class="font-bold text-sm" style="color: #2dd4bf;">{{ dry_materials.stitched_mat_kg }} кг</span>
+            </div>
+            <div class="table-row rounded-lg px-4 py-3 flex justify-between items-center">
+                <span class="text-sm">UD300</span>
+                <span class="font-bold text-sm" style="color: #2dd4bf;">{{ dry_materials.ud300_m }} м</span>
+            </div>
+            <div class="table-row rounded-lg px-4 py-3 flex justify-between items-center">
+                <span class="text-sm">UD250</span>
+                <span class="font-bold text-sm" style="color: #2dd4bf;">{{ dry_materials.ud250_m }} м</span>
+            </div>
+            <div class="table-row rounded-lg px-4 py-3 flex justify-between items-center">
+                <span class="text-sm">Марля для песка</span>
+                <span class="font-bold text-sm" style="color: #2dd4bf;">{{ dry_materials.sand_gauze_m }} м</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Кнопка закрытия -->
+    <div class="max-w-md mx-auto">
+        <button onclick="closeApp()" class="btn-close w-full text-white font-semibold text-lg rounded-xl py-4">
+            ✕ Закрыть отчёт
+        </button>
+    </div>
+
+    <script>
+        const tg = window.Telegram?.WebApp;
+        if (tg) { tg.ready(); tg.expand(); }
+
+        function closeApp() {
+            if (tg) tg.close();
+            else window.close();
+        }
+    </script>
+</body>
+
+</html>

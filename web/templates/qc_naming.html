@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Присвоение номеров — MES</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            background: var(--tg-theme-bg-color, #0f172a);
+            color: var(--tg-theme-text-color, #e2e8f0);
+            font-family: 'Inter', -apple-system, sans-serif;
+        }
+
+        .input-field {
+            background: var(--tg-theme-secondary-bg-color, #1e293b);
+            color: var(--tg-theme-text-color, #e2e8f0);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .input-field:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+            outline: none;
+        }
+
+        .label-text {
+            color: var(--tg-theme-hint-color, #94a3b8);
+        }
+
+        .section-title {
+            color: #3b82f6;
+            border-bottom: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .success-overlay {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+        }
+
+        @keyframes checkmark {
+            0% {
+                transform: scale(0);
+                opacity: 0
+            }
+
+            50% {
+                transform: scale(1.2)
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1
+            }
+        }
+
+        .animate-check {
+            animation: checkmark 0.4s ease-out forwards;
+        }
+
+        .pipe-info {
+            background: var(--tg-theme-secondary-bg-color, #1e293b);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+
+        .empty-state {
+            color: var(--tg-theme-hint-color, #94a3b8);
+        }
+    </style>
+</head>
+
+<body class="min-h-screen p-4">
+    <div class="text-center mb-6">
+        <div class="text-3xl mb-2">🏷</div>
+        <h1 class="text-xl font-bold">Присвоение серийных номеров</h1>
+        <p class="text-sm label-text mt-1">Выберите трубу и укажите серийный номер</p>
+    </div>
+
+    {% if pipes %}
+    <form id="namingForm" class="space-y-4 max-w-md mx-auto">
+        <div>
+            <label class="block text-sm font-medium label-text mb-1.5">Труба (временный номер)</label>
+            <select id="pipe_id" required class="input-field w-full rounded-xl px-4 py-3 text-base appearance-none">
+                <option value="" disabled selected>Выберите трубу</option>
+                {% for pipe in pipes %}
+                <option value="{{ pipe.id }}">{{ pipe.serial_number }} — Задача #{{ pipe.task_id }} (DN{{ pipe.task.dn
+                    if pipe.task else '?' }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div>
+            <label class="block text-sm font-medium label-text mb-1.5">Новый серийный номер</label>
+            <input type="text" id="new_serial_number" required placeholder="Введите серийный номер"
+                class="input-field w-full rounded-xl px-4 py-3 text-base">
+        </div>
+    </form>
+    {% else %}
+    <div class="text-center empty-state mt-12">
+        <div class="text-5xl mb-4">✅</div>
+        <p class="text-lg font-medium">Нет труб, ожидающих присвоения номера</p>
+        <p class="text-sm mt-2">Все трубы уже идентифицированы</p>
+    </div>
+    {% endif %}
+
+    <div id="successOverlay" class="success-overlay fixed inset-0 flex items-center justify-center z-50 hidden">
+        <div class="text-center">
+            <div class="text-6xl animate-check">✅</div>
+            <p class="text-xl font-bold mt-4">Номер присвоен!</p>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        const pipeSelect = document.getElementById('pipe_id');
+        const serialInput = document.getElementById('new_serial_number');
+        const overlay = document.getElementById('successOverlay');
+
+        if (pipeSelect) {
+            // Показать MainButton при выборе трубы
+            pipeSelect.addEventListener('change', () => {
+                if (pipeSelect.value) {
+                    tg.MainButton.setText("ПРИСВОИТЬ НОМЕР");
+                    tg.MainButton.show();
+                }
+            });
+
+            tg.MainButton.onClick(async function (e) {
+                if (e && e.preventDefault) e.preventDefault();
+
+                if (!pipeSelect.value || !serialInput.value.trim()) {
+                    tg.HapticFeedback.notificationOccurred('error');
+                    tg.showAlert('Заполните все поля!');
+                    return;
+                }
+
+                tg.MainButton.showProgress();
+
+                const telegramId = tg.initDataUnsafe?.user?.id;
+                if (!telegramId) {
+                    tg.MainButton.hideProgress();
+                    tg.HapticFeedback.notificationOccurred('error');
+                    tg.showAlert('Ошибка: не удалось получить Telegram ID.');
+                    return;
+                }
+
+                const data = {
+                    pipe_id: parseInt(pipeSelect.value),
+                    new_serial_number: serialInput.value.trim(),
+                    telegram_id: telegramId
+                };
+
+                try {
+                    const resp = await fetch('/api/qc_naming', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+
+                    if (!resp.ok) {
+                        const err = await resp.json();
+                        throw new Error(err.detail || `Ошибка: ${resp.status}`);
+                    }
+
+                    tg.MainButton.hideProgress();
+                    tg.HapticFeedback.notificationOccurred('success');
+                    overlay.classList.remove('hidden');
+                    setTimeout(() => tg.close(), 1200);
+                } catch (err) {
+                    tg.MainButton.hideProgress();
+                    tg.HapticFeedback.notificationOccurred('error');
+                    tg.showAlert(err.message || 'Ошибка при сохранении!');
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>

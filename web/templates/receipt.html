@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Приход сырья — MES</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            background: var(--tg-theme-bg-color, #0f172a);
+            color: var(--tg-theme-text-color, #e2e8f0);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        .input-field {
+            background: var(--tg-theme-secondary-bg-color, #1e293b);
+            color: var(--tg-theme-text-color, #e2e8f0);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .input-field:focus {
+            border-color: #22c55e;
+            box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15);
+            outline: none;
+        }
+
+        .label-text {
+            color: var(--tg-theme-hint-color, #94a3b8);
+        }
+
+        .card {
+            background: var(--tg-theme-secondary-bg-color, #1e293b);
+            border: 1px solid rgba(148, 163, 184, 0.1);
+        }
+
+        .success-overlay {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+        }
+
+        @keyframes checkmark {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+
+            50% {
+                transform: scale(1.2);
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .animate-check {
+            animation: checkmark 0.4s ease-out forwards;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen p-4">
+
+    <!-- Заголовок -->
+    <div class="text-center mb-6">
+        <div class="text-3xl mb-2">📦</div>
+        <h1 class="text-xl font-bold">Приход сырья на склад</h1>
+        <p class="text-sm label-text mt-1">Ежедневный учёт поступления материалов</p>
+    </div>
+
+    <!-- Форма -->
+    <form id="receiptForm" class="space-y-4 max-w-md mx-auto">
+
+        <!-- Материал -->
+        <div>
+            <label class="block text-sm font-medium label-text mb-1.5">Материал</label>
+            <select id="material_name" required
+                class="input-field w-full rounded-xl px-4 py-3 text-base appearance-none">
+                <option value="" disabled selected>Выберите материал</option>
+                <option value="Изофталевая смола (Лайнер)">Изофталевая смола (Лайнер)</option>
+                <option value="Ортофталевая смола (Виндер и Песок)">Ортофталевая смола (Виндер и Песок)</option>
+                <option value="Октоат кобальта 12%">Октоат кобальта 12%</option>
+                <option value="Акперокс">Акперокс</option>
+                <option value="Стекловолокно 2400tex">Стекловолокно 2400tex</option>
+                <option value="Песок">Песок</option>
+                <option value="Марля полиэфирная (Лайнер)">Марля полиэфирная (Лайнер)</option>
+                <option value="Марля полиэфирная (Песок)">Марля полиэфирная (Песок)</option>
+                <option value="UD250">UD250</option>
+                <option value="UD300">UD300</option>
+                <option value="PET200">PET200</option>
+                <option value="PET50">PET50</option>
+                <option value="Воск">Воск</option>
+                <option value="Ацетон">Ацетон</option>
+            </select>
+        </div>
+
+        <!-- Количество -->
+        <div>
+            <label class="block text-sm font-medium label-text mb-1.5">Количество</label>
+            <input type="number" id="quantity" step="0.01" min="0.01" required placeholder="0.00"
+                class="input-field w-full rounded-xl px-4 py-3 text-base">
+        </div>
+
+        <!-- Единица измерения -->
+        <div>
+            <label class="block text-sm font-medium label-text mb-1.5">Единица измерения</label>
+            <select id="unit" required class="input-field w-full rounded-xl px-4 py-3 text-base appearance-none">
+                <option value="" disabled selected>Выберите единицу</option>
+                <option value="кг">кг</option>
+                <option value="л">л</option>
+                <option value="шт">шт</option>
+                <option value="м">м</option>
+            </select>
+        </div>
+
+        <!-- Номер партии -->
+        <div>
+            <label class="block text-sm font-medium label-text mb-1.5">
+                Номер партии <span class="opacity-50">(необязательно)</span>
+            </label>
+            <input type="text" id="batch_number" placeholder="Например: LOT-2026-0223"
+                class="input-field w-full rounded-xl px-4 py-3 text-base">
+        </div>
+
+    </form>
+
+    <!-- Оверлей успеха -->
+    <div id="successOverlay" class="success-overlay fixed inset-0 flex items-center justify-center z-50 hidden">
+        <div class="text-center">
+            <div class="text-6xl animate-check">✅</div>
+            <p class="text-xl font-bold mt-4">Сохранено!</p>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        // ── MainButton ──────────────────────────────────────────────
+        tg.MainButton.setText("СОХРАНИТЬ");
+        tg.MainButton.show();
+
+        const form = document.getElementById('receiptForm');
+        const overlay = document.getElementById('successOverlay');
+
+        tg.MainButton.onClick(async function () {
+            tg.MainButton.showProgress();
+
+            // Валидация формы
+            if (!form.reportValidity()) {
+                tg.MainButton.hideProgress();
+                return;
+            }
+
+            const telegramId = tg.initDataUnsafe?.user?.id;
+            if (!telegramId) {
+                tg.MainButton.hideProgress();
+                tg.HapticFeedback.notificationOccurred('error');
+                tg.showAlert('Ошибка: не удалось получить Telegram ID. Откройте форму через бот.');
+                return;
+            }
+
+            const data = {
+                material_name: document.getElementById('material_name').value,
+                quantity: parseFloat(document.getElementById('quantity').value),
+                unit: document.getElementById('unit').value,
+                batch_number: document.getElementById('batch_number').value || null,
+                telegram_id: telegramId,
+            };
+
+            try {
+                const response = await fetch('/api/receipt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Ошибка сервера: ${response.status}`);
+                }
+
+                tg.MainButton.hideProgress();
+                tg.HapticFeedback.notificationOccurred('success');
+                overlay.classList.remove('hidden');
+                setTimeout(() => tg.close(), 1200);
+
+            } catch (err) {
+                tg.MainButton.hideProgress();
+                tg.HapticFeedback.notificationOccurred('error');
+                tg.showAlert('Ошибка при сохранении данных!');
+            }
+        });
+    </script>
+</body>
+
+</html>

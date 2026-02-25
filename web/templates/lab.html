@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Лабораторные тесты — MES</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            background: var(--tg-theme-bg-color, #0f172a);
+            color: var(--tg-theme-text-color, #e2e8f0);
+            font-family: 'Inter', -apple-system, sans-serif;
+        }
+
+        .input-field {
+            background: var(--tg-theme-secondary-bg-color, #1e293b);
+            color: var(--tg-theme-text-color, #e2e8f0);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .input-field:focus {
+            border-color: #06b6d4;
+            box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
+            outline: none;
+        }
+
+        .label-text {
+            color: var(--tg-theme-hint-color, #94a3b8);
+        }
+
+        .section-title {
+            color: #06b6d4;
+            border-bottom: 1px solid rgba(6, 182, 212, 0.3);
+        }
+
+        .success-overlay {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+        }
+
+        @keyframes checkmark {
+            0% {
+                transform: scale(0);
+                opacity: 0
+            }
+
+            50% {
+                transform: scale(1.2)
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1
+            }
+        }
+
+        .animate-check {
+            animation: checkmark 0.4s ease-out forwards;
+        }
+
+        .stage-fields {
+            transition: opacity 0.2s, max-height 0.3s;
+        }
+
+        .checkbox-custom {
+            accent-color: #06b6d4;
+            width: 20px;
+            height: 20px;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen p-4">
+    <div class="text-center mb-6">
+        <div class="text-3xl mb-2">🔬</div>
+        <h1 class="text-xl font-bold">Лабораторные тесты</h1>
+        <p class="text-sm label-text mt-1">Ввод результатов лабораторных испытаний</p>
+    </div>
+    <form id="labForm" class="space-y-4 max-w-md mx-auto">
+        <div>
+            <label class="block text-sm font-medium label-text mb-1.5">Труба</label>
+            <select id="pipe_id" required class="input-field w-full rounded-xl px-4 py-3 text-base appearance-none">
+                <option value="" disabled selected>Выберите трубу</option>
+                {% for pipe in pipes %}
+                <option value="{{ pipe.id }}">{{ pipe.serial_number }} ({{ pipe.status.value }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-sm font-medium label-text mb-1.5">Тип теста</label>
+            <select id="test_type" required class="input-field w-full rounded-xl px-4 py-3 text-base appearance-none">
+                <option value="" disabled selected>Выберите тип теста</option>
+                <option value="gel_time_liner">Гелеобразование — Лайнер</option>
+                <option value="gel_time_winder">Гелеобразование — Виндер</option>
+                <option value="sand_absorbency">Тест песка (впитываемость)</option>
+            </select>
+        </div>
+        <!-- Блок Гелеобразования -->
+        <div id="gel-fields" class="stage-fields space-y-3" style="display:none;">
+            <p class="section-title text-sm font-semibold pb-1 mb-2">Параметры гелеобразования</p>
+            <div><label class="block text-sm font-medium label-text mb-1">Время гелеобразования (мин)</label>
+                <input type="number" id="gel_time_minutes" step="0.1" min="0" placeholder="0.0"
+                    class="input-field w-full rounded-xl px-4 py-3 text-base">
+            </div>
+            <div><label class="block text-sm font-medium label-text mb-1">Температура в цеху (°C)</label>
+                <input type="number" id="room_temperature_c" step="0.1" placeholder="25.0"
+                    class="input-field w-full rounded-xl px-4 py-3 text-base">
+            </div>
+            <div><label class="block text-sm font-medium label-text mb-1">Темп. экзотермического пика (°C)</label>
+                <input type="number" id="exothermic_peak_c" step="0.1" placeholder="0.0"
+                    class="input-field w-full rounded-xl px-4 py-3 text-base">
+            </div>
+            <div><label class="block text-sm font-medium label-text mb-1">Вязкость (мПа·с)</label>
+                <input type="number" id="viscosity_mpa_s" step="0.1" min="0" placeholder="0.0"
+                    class="input-field w-full rounded-xl px-4 py-3 text-base">
+            </div>
+        </div>
+        <!-- Блок Теста песка -->
+        <div id="sand-fields" class="stage-fields space-y-3" style="display:none;">
+            <p class="section-title text-sm font-semibold pb-1 mb-2">Параметры теста песка</p>
+            <div><label class="block text-sm font-medium label-text mb-1">Результат впитываемости</label>
+                <textarea id="absorbency_result" rows="3" placeholder="Описание результата..."
+                    class="input-field w-full rounded-xl px-4 py-3 text-base resize-none"></textarea>
+            </div>
+            <div class="flex items-center gap-3 py-2">
+                <input type="checkbox" id="is_homogeneous" class="checkbox-custom">
+                <label for="is_homogeneous" class="text-sm font-medium">Однородность смеси подтверждена</label>
+            </div>
+            <div><label class="block text-sm font-medium label-text mb-1">Теоретическое содержание смолы (%)</label>
+                <input type="number" id="theoretical_resin_percent" step="0.1" min="0" placeholder="0.0"
+                    class="input-field w-full rounded-xl px-4 py-3 text-base">
+            </div>
+        </div>
+    </form>
+    <div id="successOverlay" class="success-overlay fixed inset-0 flex items-center justify-center z-50 hidden">
+        <div class="text-center">
+            <div class="text-6xl animate-check">✅</div>
+            <p class="text-xl font-bold mt-4">Сохранено!</p>
+        </div>
+    </div>
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready(); tg.expand();
+        tg.MainButton.setText("СОХРАНИТЬ"); tg.MainButton.show();
+        const testTypeSelect = document.getElementById('test_type');
+        const gelFields = document.getElementById('gel-fields');
+        const sandFields = document.getElementById('sand-fields');
+        const form = document.getElementById('labForm');
+        const overlay = document.getElementById('successOverlay');
+        testTypeSelect.addEventListener('change', () => {
+            const val = testTypeSelect.value;
+            gelFields.style.display = (val === 'gel_time_liner' || val === 'gel_time_winder') ? 'block' : 'none';
+            sandFields.style.display = val === 'sand_absorbency' ? 'block' : 'none';
+        });
+        function getVal(id) { const el = document.getElementById(id); return el && el.value !== '' ? parseFloat(el.value) : null; }
+        tg.MainButton.onClick(async function () {
+            tg.MainButton.showProgress();
+            if (!form.reportValidity()) { tg.MainButton.hideProgress(); return; }
+            const telegramId = tg.initDataUnsafe?.user?.id;
+            if (!telegramId) { tg.MainButton.hideProgress(); tg.HapticFeedback.notificationOccurred('error'); tg.showAlert('Ошибка: не удалось получить Telegram ID.'); return; }
+            const testType = testTypeSelect.value;
+            const data = { pipe_id: parseInt(document.getElementById('pipe_id').value), test_type: testType, telegram_id: telegramId };
+            if (testType === 'gel_time_liner' || testType === 'gel_time_winder') {
+                data.gel_time_minutes = getVal('gel_time_minutes');
+                data.room_temperature_c = getVal('room_temperature_c');
+                data.exothermic_peak_c = getVal('exothermic_peak_c');
+                data.viscosity_mpa_s = getVal('viscosity_mpa_s');
+            } else if (testType === 'sand_absorbency') {
+                data.absorbency_result = document.getElementById('absorbency_result').value || null;
+                data.is_homogeneous = document.getElementById('is_homogeneous').checked;
+                data.theoretical_resin_percent = getVal('theoretical_resin_percent');
+            }
+            try {
+                const resp = await fetch('/api/lab', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                if (!resp.ok) throw new Error(`Ошибка: ${resp.status}`);
+                tg.MainButton.hideProgress(); tg.HapticFeedback.notificationOccurred('success');
+                overlay.classList.remove('hidden'); setTimeout(() => tg.close(), 1200);
+            } catch (err) {
+                tg.MainButton.hideProgress(); tg.HapticFeedback.notificationOccurred('error'); tg.showAlert('Ошибка при сохранении данных!');
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сухие материалы — MES</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            background: var(--tg-theme-bg-color, #0f172a);
+            color: var(--tg-theme-text-color, #e2e8f0);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        .input-field {
+            background: var(--tg-theme-secondary-bg-color, #1e293b);
+            color: var(--tg-theme-text-color, #e2e8f0);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .input-field:focus {
+            border-color: #f59e0b;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+            outline: none;
+        }
+
+        .label-text {
+            color: var(--tg-theme-hint-color, #94a3b8);
+        }
+
+        .section-title {
+            color: #f59e0b;
+            border-bottom: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .success-overlay {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+        }
+
+        @keyframes checkmark {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+
+            50% {
+                transform: scale(1.2);
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .animate-check {
+            animation: checkmark 0.4s ease-out forwards;
+        }
+
+        .stage-fields {
+            transition: opacity 0.2s, max-height 0.3s;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen p-4">
+
+    <!-- Заголовок -->
+    <div class="text-center mb-6">
+        <div class="text-3xl mb-2">🧵</div>
+        <h1 class="text-xl font-bold">Сухие материалы</h1>
+        <p class="text-sm label-text mt-1">Фактический расход сухих материалов</p>
+    </div>
+
+    <!-- Форма -->
+    <form id="techForm" class="space-y-4 max-w-md mx-auto">
+
+        <!-- Выбор трубы -->
+        <div>
+            <label class="block text-sm font-medium label-text mb-1.5">Труба</label>
+            <select id="pipe_id" required class="input-field w-full rounded-xl px-4 py-3 text-base appearance-none">
+                <option value="" disabled selected>Выберите трубу</option>
+                {% for pipe in pipes %}
+                <option value="{{ pipe.id }}">{{ pipe.serial_number }} ({{ pipe.status.value }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Стадия -->
+        <div>
+            <label class="block text-sm font-medium label-text mb-1.5">Стадия</label>
+            <select id="stage-select" required
+                class="input-field w-full rounded-xl px-4 py-3 text-base appearance-none">
+                <option value="" disabled selected>Выберите стадию</option>
+                <option value="liner">Лайнер</option>
+                <option value="winder">Виндер</option>
+            </select>
+        </div>
+
+        <!-- ── Блок Лайнера ──────────────────────────────────────────── -->
+        <div id="liner-fields" class="stage-fields space-y-3" style="display: none;">
+            <p class="section-title text-sm font-semibold pb-1 mb-2">Материалы: Лайнер</p>
+
+            <div>
+                <label class="block text-sm font-medium label-text mb-1">Полиэфирная марля (м)</label>
+                <input type="number" id="polyester_gauze_m" step="0.01" min="0" placeholder="0.00"
+                    class="input-field w-full rounded-xl px-4 py-3 text-base">
+            </div>
+            <div>
+                <label class="block text-sm font-medium label-text mb-1">Вуаль (м)</label>
+                <input type="number" id="veil_m" step="0.01" min="0" placeholder="0.00"
+                    class="input-field w-full rounded-xl px-4 py-3 text-base">
+            </div>
+            <div>
+                <label class="block text-sm font-medium label-text mb-1">Сшитый материал (кг)</label>
+                <input type="number" id="stitched_mat_kg" step="0.01" min="0" placeholder="0.00"
+                    class="input-field w-full rounded-xl px-4 py-3 text-base">
+            </div>
+            <div>
+                <label class="block text-sm font-medium label-text mb-1">UD300 (м)</label>
+                <input type="number" id="ud300_m" step="0.01" min="0" placeholder="0.00"
+                    class="input-field w-full rounded-xl px-4 py-3 text-base">
+            </div>
+        </div>
+
+        <!-- ── Блок Виндера ──────────────────────────────────────────── -->
+        <div id="winder-fields" class="stage-fields space-y-3" style="display: none;">
+            <p class="section-title text-sm font-semibold pb-1 mb-2">Материалы: Виндер</p>
+
+            <div>
+                <label class="block text-sm font-medium label-text mb-1">Стекловолокно 2400tex (кг)</label>
+                <input type="number" id="fiberglass_2400tex_kg" step="0.01" min="0" placeholder="0.00"
+                    class="input-field w-full rounded-xl px-4 py-3 text-base">
+            </div>
+            <div>
+                <label class="block text-sm font-medium label-text mb-1">Песок (кг)</label>
+                <input type="number" id="sand_kg" step="0.01" min="0" placeholder="0.00"
+                    class="input-field w-full rounded-xl px-4 py-3 text-base">
+            </div>
+            <div>
+                <label class="block text-sm font-medium label-text mb-1">UD250 (м)</label>
+                <input type="number" id="ud250_m" step="0.01" min="0" placeholder="0.00"
+                    class="input-field w-full rounded-xl px-4 py-3 text-base">
+            </div>
+            <div>
+                <label class="block text-sm font-medium label-text mb-1">Марля для песка (м)</label>
+                <input type="number" id="sand_gauze_m" step="0.01" min="0" placeholder="0.00"
+                    class="input-field w-full rounded-xl px-4 py-3 text-base">
+            </div>
+        </div>
+
+    </form>
+
+    <!-- Оверлей успеха -->
+    <div id="successOverlay" class="success-overlay fixed inset-0 flex items-center justify-center z-50 hidden">
+        <div class="text-center">
+            <div class="text-6xl animate-check">✅</div>
+            <p class="text-xl font-bold mt-4">Сохранено!</p>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        tg.MainButton.setText("СОХРАНИТЬ");
+        tg.MainButton.show();
+
+        const stageSelect = document.getElementById('stage-select');
+        const linerFields = document.getElementById('liner-fields');
+        const winderFields = document.getElementById('winder-fields');
+        const form = document.getElementById('techForm');
+        const overlay = document.getElementById('successOverlay');
+
+        // ── Динамическое переключение блоков ────────────────────────
+        stageSelect.addEventListener('change', () => {
+            const stage = stageSelect.value;
+            linerFields.style.display = stage === 'liner' ? 'block' : 'none';
+            winderFields.style.display = stage === 'winder' ? 'block' : 'none';
+        });
+
+        // ── Хелпер: значение поля или null ──────────────────────────
+        function getVal(id) {
+            const el = document.getElementById(id);
+            return el && el.value !== '' ? parseFloat(el.value) : null;
+        }
+
+        // ── Сабмит через MainButton ─────────────────────────────────
+        tg.MainButton.onClick(async function () {
+            tg.MainButton.showProgress();
+
+            if (!form.reportValidity()) {
+                tg.MainButton.hideProgress();
+                return;
+            }
+
+            const telegramId = tg.initDataUnsafe?.user?.id;
+            if (!telegramId) {
+                tg.MainButton.hideProgress();
+                tg.HapticFeedback.notificationOccurred('error');
+                tg.showAlert('Ошибка: не удалось получить Telegram ID.');
+                return;
+            }
+
+            const stage = stageSelect.value;
+
+            const data = {
+                pipe_id: parseInt(document.getElementById('pipe_id').value),
+                stage: stage,
+                telegram_id: telegramId,
+            };
+
+            if (stage === 'liner') {
+                data.polyester_gauze_m = getVal('polyester_gauze_m');
+                data.veil_m = getVal('veil_m');
+                data.stitched_mat_kg = getVal('stitched_mat_kg');
+                data.ud300_m = getVal('ud300_m');
+            } else {
+                data.fiberglass_2400tex_kg = getVal('fiberglass_2400tex_kg');
+                data.sand_kg = getVal('sand_kg');
+                data.ud250_m = getVal('ud250_m');
+                data.sand_gauze_m = getVal('sand_gauze_m');
+            }
+
+            try {
+                const resp = await fetch('/api/dry_materials', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                });
+
+                if (!resp.ok) throw new Error(`Ошибка: ${resp.status}`);
+
+                tg.MainButton.hideProgress();
+                tg.HapticFeedback.notificationOccurred('success');
+                overlay.classList.remove('hidden');
+                setTimeout(() => tg.close(), 1200);
+
+            } catch (err) {
+                tg.MainButton.hideProgress();
+                tg.HapticFeedback.notificationOccurred('error');
+                tg.showAlert('Ошибка при сохранении данных!');
+            }
+        });
+    </script>
+</body>
+
+</html>
