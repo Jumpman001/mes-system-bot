@@ -71,8 +71,8 @@ def _confirm_keyboard() -> InlineKeyboardMarkup:
 
 
 def _generate_temp_serial(task_id: int, index: int) -> str:
-    """Генерация временного серийного номера: TEMP-TASK{task_id}-{index}."""
-    return f"TEMP-TASK{task_id}-{index}"
+    """Генерация временного серийного номера: T{task_id}-{index}."""
+    return f"T{task_id}-{index}"
 
 
 # ── Команда /new_task — старт FSM ───────────────────────────────────────────
