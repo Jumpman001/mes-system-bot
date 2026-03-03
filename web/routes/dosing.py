@@ -15,6 +15,7 @@ from sqlalchemy import select
 from db.database import async_session
 from db.models import ChemistryLog, ChemistryStage, Pipe, PipeStatus
 from web.schemas import ChemistryLogCreate
+from web.services.stock_service import deduct_chemistry
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -49,7 +50,7 @@ async def dosing_page(request: Request):
 
 @router.post("/api/dosing")
 async def create_chemistry_log(data: ChemistryLogCreate):
-    """Сохраняет запись расхода химии в БД."""
+    """Сохраняет запись расхода химии в БД и списывает со склада."""
     try:
         async with async_session() as session:
             log = ChemistryLog(
@@ -61,6 +62,14 @@ async def create_chemistry_log(data: ChemistryLogCreate):
                 entered_by=data.telegram_id,
             )
             session.add(log)
+
+            # Автоматически списываем со склада
+            await deduct_chemistry(session, data.stage, {
+                "resin_kg": data.resin_kg,
+                "cobalt_kg": data.cobalt_kg,
+                "peroxide_kg": data.peroxide_kg,
+            })
+
             await session.commit()
     except Exception as e:
         logger.error("Ошибка при сохранении расхода химии: %s", e)

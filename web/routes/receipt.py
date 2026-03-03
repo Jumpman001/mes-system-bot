@@ -14,6 +14,7 @@ from fastapi.templating import Jinja2Templates
 from db.database import async_session
 from db.models import MaterialReceipt
 from web.schemas import ReceiptCreate
+from web.services.stock_service import update_stock
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ async def receipt_page(request: Request):
 
 @router.post("/api/receipt")
 async def create_receipt(data: ReceiptCreate):
-    """Сохраняет запись прихода сырья в БД."""
+    """Сохраняет запись прихода сырья в БД и обновляет склад."""
     try:
         async with async_session() as session:
             receipt = MaterialReceipt(
@@ -42,6 +43,10 @@ async def create_receipt(data: ReceiptCreate):
                 entered_by=data.telegram_id,
             )
             session.add(receipt)
+
+            # Автоматически пополняем склад
+            await update_stock(session, data.material_name, data.quantity, data.unit)
+
             await session.commit()
     except Exception as e:
         logger.error("Ошибка при сохранении прихода: %s", e)

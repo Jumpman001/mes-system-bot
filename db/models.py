@@ -497,3 +497,113 @@ class MaterialReceipt(Base):
     
     entered_by: Mapped[int] = mapped_column(BigInteger, nullable=False, comment="Telegram ID начальника смены")
     entered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# ── Склад — текущие остатки материалов ──────────────────────────────────────
+
+class MaterialStock(Base):
+    """
+    Текущий остаток каждого материала на складе.
+    Обновляется автоматически:
+      + при приходе (MaterialReceipt)
+      − при расходе (ChemistryLog, DryMaterialLog)
+    """
+    __tablename__ = "material_stock"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    material_name: Mapped[str] = mapped_column(
+        String(100), unique=True, nullable=False, index=True,
+        comment="Название материала (совпадает с MaterialReceipt)"
+    )
+    unit: Mapped[str] = mapped_column(
+        String(20), nullable=False, comment="Единица измерения (кг, м, шт)"
+    )
+    current_quantity: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, comment="Текущий остаток"
+    )
+    min_quantity: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0,
+        comment="Минимальный порог (для алерта «заканчивается»)"
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+# ── Нормативы расхода на тип трубы ─────────────────────────────────────────
+
+class PipeNorm(Base):
+    """
+    Норматив расхода материалов на 1 трубу заданного типа (DN/PN/SN).
+    Используется для сравнения факта с нормой и расчёта
+    ожидаемого расхода склада при создании задачи.
+    """
+    __tablename__ = "pipe_norms"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    # Тип трубы
+    dn: Mapped[int] = mapped_column(Integer, nullable=False, comment="Номинальный диаметр")
+    pn: Mapped[int] = mapped_column(Integer, nullable=False, comment="Номинальное давление")
+    sn: Mapped[int] = mapped_column(Integer, nullable=False, comment="Номинальная жёсткость")
+    with_sand: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, comment="С песком / без песка"
+    )
+
+    # ── Нормы расхода химии (кг на 1 трубу) ──
+    resin_liner_kg: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, comment="Смола на Лайнер, кг"
+    )
+    resin_winder_kg: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, comment="Смола на Виндер (стекло), кг"
+    )
+    resin_sand_kg: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, comment="Смола на Песок, кг"
+    )
+    cobalt_kg: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, comment="Октоат кобальта, кг"
+    )
+    peroxide_kg: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, comment="Акперокс, кг"
+    )
+
+    # ── Нормы расхода сухих материалов ──
+    polyester_gauze_m: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, comment="Полиэфирная марля, м"
+    )
+    veil_m: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, comment="Вуаль, м"
+    )
+    stitched_mat_kg: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, comment="Сшитый материал, кг"
+    )
+    ud300_m: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, comment="UD300, м"
+    )
+    fiberglass_2400tex_kg: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, comment="Стекловолокно 2400tex, кг"
+    )
+    sand_kg: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, comment="Песок, кг"
+    )
+    ud250_m: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, comment="UD250, м"
+    )
+    sand_gauze_m: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, comment="Марля для песка, м"
+    )
+
+    # ── Допуски геометрии (мин / макс) ──
+    wall_thickness_min_mm: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, comment="Толщина стенки мин, мм"
+    )
+    wall_thickness_max_mm: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, comment="Толщина стенки макс, мм"
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

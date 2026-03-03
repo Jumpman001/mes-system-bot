@@ -46,6 +46,12 @@ async def cmd_pipe_report(message: Message, state: FSMContext) -> None:
 async def process_serial_number(message: Message, state: FSMContext) -> None:
     """Ищем трубу и формируем досье."""
     user_input = (message.text or "").strip()
+
+    # Если пользователь ввёл другую команду — отменяем FSM и не блокируем
+    if user_input.startswith("/"):
+        await state.clear()
+        return
+
     if not user_input:
         await message.answer("⚠️ Введите серийный номер.")
         return

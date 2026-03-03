@@ -14,6 +14,8 @@ from web.routes.technologist import router as technologist_router
 from web.routes.lab import router as lab_router
 from web.routes.qc import router as qc_router
 from web.routes.analytics import router as analytics_router
+from web.routes.inventory import router as inventory_router
+from web.routes.norms import router as norms_router
 
 # ── Пути ─────────────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent
@@ -37,3 +39,5 @@ app.include_router(technologist_router)
 app.include_router(lab_router)
 app.include_router(qc_router)
 app.include_router(analytics_router)
+app.include_router(inventory_router)
+app.include_router(norms_router)

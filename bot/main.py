@@ -21,6 +21,8 @@ from bot.handlers.technologist import router as technologist_router
 from bot.handlers.lab import router as lab_router
 from bot.handlers.qc import router as qc_router
 from bot.handlers.report import router as report_router
+from bot.handlers.ai_assistant import router as ai_assistant_router
+from bot.handlers.inventory import router as inventory_router
 
 # ── Логирование ──────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -43,6 +45,8 @@ async def set_bot_commands(bot: Bot) -> None:
         BotCommand(command="naming", description="🏷 Присвоение номеров (ОТК)"),
         BotCommand(command="new_task", description="📋 Новая задача (Админ)"),
         BotCommand(command="pipe_report", description="📑 Досье на трубу"),
+        BotCommand(command="ask", description="🤖 Задать вопрос по документации"),
+        BotCommand(command="stock", description="📦 Остатки склада"),
     ]
     await bot.set_my_commands(commands)
     logger.info("Меню команд установлено (%d команд)", len(commands))
@@ -66,6 +70,8 @@ async def main() -> None:
     dp.include_router(lab_router)
     dp.include_router(qc_router)
     dp.include_router(report_router)
+    dp.include_router(ai_assistant_router)
+    dp.include_router(inventory_router)
 
     # Устанавливаем меню команд
     await set_bot_commands(bot)

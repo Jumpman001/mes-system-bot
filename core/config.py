@@ -36,7 +36,13 @@ class Settings(BaseSettings):
     # ── FastAPI (Mini App) ───────────────────────────────────────────────
     WEB_HOST: str = "0.0.0.0"
     WEB_PORT: int = 8000
-    WEB_URL: str = "https://xrqks-46-20-203-220.a.free.pinggy.link"
+    WEB_URL: str = "https://fqary-37-98-155-253.a.free.pinggy.link"
+
+    # ── Google Gemini (RAG) ──────────────────────────────────────────────
+    GEMINI_API_KEY: str = ""
+
+    # ── Grok (xAI) ──────────────────────────────────────────────────────
+    GROK_API_KEY: str = ""
 
 
 # Синглтон — импортируй из любого модуля

@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Нормативы — MES</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            background: var(--tg-theme-bg-color, #0f172a);
+            color: var(--tg-theme-text-color, #e2e8f0);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        .card {
+            background: var(--tg-theme-secondary-bg-color, #1e293b);
+            border: 1px solid rgba(148, 163, 184, 0.1);
+        }
+
+        .label-text {
+            color: var(--tg-theme-hint-color, #94a3b8);
+        }
+
+        .input-field {
+            background: var(--tg-theme-secondary-bg-color, #1e293b);
+            color: var(--tg-theme-text-color, #e2e8f0);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .input-field:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+            outline: none;
+        }
+
+        .tab-active {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .tab-inactive {
+            background: var(--tg-theme-secondary-bg-color, #1e293b);
+            color: var(--tg-theme-hint-color, #94a3b8);
+        }
+
+        .section-title {
+            color: #3b82f6;
+            border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+        }
+
+        .success-overlay {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+        }
+
+        @keyframes checkmark {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+
+            50% {
+                transform: scale(1.2);
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .animate-check {
+            animation: checkmark 0.4s ease-out forwards;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen p-4">
+
+    <!-- Заголовок -->
+    <div class="text-center mb-5">
+        <div class="text-3xl mb-2">📐</div>
+        <h1 class="text-xl font-bold">Нормативы расхода</h1>
+        <p class="text-sm label-text mt-1">Нормы материалов на тип трубы</p>
+    </div>
+
+    <!-- Табы: Список / Добавить -->
+    <div class="flex gap-2 mb-5">
+        <button onclick="showTab('list')" id="tabList" class="flex-1 py-2 rounded-xl text-sm font-medium tab-active">
+            📋 Список
+        </button>
+        <button onclick="showTab('form')" id="tabForm" class="flex-1 py-2 rounded-xl text-sm font-medium tab-inactive">
+            ➕ Добавить
+        </button>
+    </div>
+
+    <!-- ТАБ: Список нормативов -->
+    <div id="listView">
+        {% if norms %}
+        <div class="space-y-3">
+            {% for n in norms %}
+            <div class="card rounded-xl p-4">
+                <div class="flex justify-between items-center mb-3">
+                    <div>
+                        <span class="font-bold text-lg">DN{{ n.dn }}</span>
+                        <span class="label-text text-sm ml-1">PN{{ n.pn }} / SN{{ n.sn }}</span>
+                    </div>
+                    <span
+                        class="text-xs px-2 py-1 rounded-full
+                            {% if n.with_sand %}bg-amber-900/30 text-amber-400{% else %}bg-blue-900/30 text-blue-400{% endif %}">
+                        {% if n.with_sand %}С песком{% else %}Без песка{% endif %}
+                    </span>
+                </div>
+
+                <!-- Химия -->
+                <div class="text-xs label-text mb-1 font-medium">🧪 Химия (кг):</div>
+                <div class="grid grid-cols-3 gap-2 text-xs mb-3">
+                    {% if n.resin_liner_kg %}
+                    <div class="card rounded-lg p-2 text-center">
+                        <div class="font-bold">{{ n.resin_liner_kg }}</div>
+                        <div class="label-text" style="font-size:10px">Смола Л</div>
+                    </div>
+                    {% endif %}
+                    {% if n.resin_winder_kg %}
+                    <div class="card rounded-lg p-2 text-center">
+                        <div class="font-bold">{{ n.resin_winder_kg }}</div>
+                        <div class="label-text" style="font-size:10px">Смола В</div>
+                    </div>
+                    {% endif %}
+                    {% if n.resin_sand_kg %}
+                    <div class="card rounded-lg p-2 text-center">
+                        <div class="font-bold">{{ n.resin_sand_kg }}</div>
+                        <div class="label-text" style="font-size:10px">Смола П</div>
+                    </div>
+                    {% endif %}
+                    {% if n.cobalt_kg %}
+                    <div class="card rounded-lg p-2 text-center">
+                        <div class="font-bold">{{ n.cobalt_kg }}</div>
+                        <div class="label-text" style="font-size:10px">Кобальт</div>
+                    </div>
+                    {% endif %}
+                    {% if n.peroxide_kg %}
+                    <div class="card rounded-lg p-2 text-center">
+                        <div class="font-bold">{{ n.peroxide_kg }}</div>
+                        <div class="label-text" style="font-size:10px">Акперокс</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Геометрия -->
+                {% if n.wall_thickness_min_mm or n.wall_thickness_max_mm %}
+                <div class="text-xs label-text font-medium">📏 Стенка:</div>
+                <div class="text-xs mt-1">
+                    {{ n.wall_thickness_min_mm or '—' }} – {{ n.wall_thickness_max_mm or '—' }} мм
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-12" style="color: var(--tg-theme-hint-color, #94a3b8);">
+            <div class="text-5xl mb-4">📐</div>
+            <p class="text-lg font-medium">Нормативов пока нет</p>
+            <p class="text-sm mt-1">Нажмите «Добавить» чтобы создать первый</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ТАБ: Форма добавления -->
+    <div id="formView" class="hidden">
+        <form id="normForm" class="space-y-4 max-w-md mx-auto">
+
+            <!-- Тип трубы -->
+            <div class="section-title pb-2 mb-3 text-sm font-semibold">🔧 Тип трубы</div>
+            <div class="grid grid-cols-3 gap-3">
+                <div>
+                    <label class="block text-xs label-text mb-1">DN</label>
+                    <input type="number" id="dn" required placeholder="300"
+                        class="input-field w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs label-text mb-1">PN</label>
+                    <input type="number" id="pn" required placeholder="10"
+                        class="input-field w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs label-text mb-1">SN</label>
+                    <input type="number" id="sn" required placeholder="5000"
+                        class="input-field w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+            </div>
+            <div class="flex items-center gap-2 mt-2">
+                <input type="checkbox" id="with_sand" checked class="rounded">
+                <label for="with_sand" class="text-sm">С песком</label>
+            </div>
+
+            <!-- Химия -->
+            <div class="section-title pb-2 mb-3 text-sm font-semibold mt-5">🧪 Расход химии (кг)</div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs label-text mb-1">Смола (Лайнер)</label>
+                    <input type="number" id="resin_liner_kg" step="0.1" placeholder="0"
+                        class="input-field w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs label-text mb-1">Смола (Виндер)</label>
+                    <input type="number" id="resin_winder_kg" step="0.1" placeholder="0"
+                        class="input-field w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs label-text mb-1">Смола (Песок)</label>
+                    <input type="number" id="resin_sand_kg" step="0.1" placeholder="0"
+                        class="input-field w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs label-text mb-1">Октоат кобальта</label>
+                    <input type="number" id="cobalt_kg" step="0.01" placeholder="0"
+                        class="input-field w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs label-text mb-1">Акперокс</label>
+                    <input type="number" id="peroxide_kg" step="0.01" placeholder="0"
+                        class="input-field w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+            </div>
+
+            <!-- Сухие материалы -->
+            <div class="section-title pb-2 mb-3 text-sm font-semibold mt-5">🧵 Сухие материалы</div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs label-text mb-1">Марля (м)</label>
+                    <input type="number" id="polyester_gauze_m" step="0.1" placeholder="0"
+                        class="input-field w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs label-text mb-1">Вуаль (м)</label>
+                    <input type="number" id="veil_m" step="0.1" placeholder="0"
+                        class="input-field w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs label-text mb-1">Сшитый мат (кг)</label>
+                    <input type="number" id="stitched_mat_kg" step="0.1" placeholder="0"
+                        class="input-field w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs label-text mb-1">UD300 (м)</label>
+                    <input type="number" id="ud300_m" step="0.1" placeholder="0"
+                        class="input-field w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs label-text mb-1">Стекловолокно (кг)</label>
+                    <input type="number" id="fiberglass_2400tex_kg" step="0.1" placeholder="0"
+                        class="input-field w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs label-text mb-1">Песок (кг)</label>
+                    <input type="number" id="sand_kg" step="0.1" placeholder="0"
+                        class="input-field w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs label-text mb-1">UD250 (м)</label>
+                    <input type="number" id="ud250_m" step="0.1" placeholder="0"
+                        class="input-field w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs label-text mb-1">Марля песок (м)</label>
+                    <input type="number" id="sand_gauze_m" step="0.1" placeholder="0"
+                        class="input-field w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+            </div>
+
+            <!-- Геометрия -->
+            <div class="section-title pb-2 mb-3 text-sm font-semibold mt-5">📏 Допуски геометрии (мм)</div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs label-text mb-1">Стенка мин.</label>
+                    <input type="number" id="wall_thickness_min_mm" step="0.1" placeholder="0"
+                        class="input-field w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs label-text mb-1">Стенка макс.</label>
+                    <input type="number" id="wall_thickness_max_mm" step="0.1" placeholder="0"
+                        class="input-field w-full rounded-xl px-3 py-2.5 text-sm">
+                </div>
+            </div>
+
+            <!-- Пустое пространство для MainButton -->
+            <div class="h-16"></div>
+        </form>
+    </div>
+
+    <!-- Оверлей успеха -->
+    <div id="successOverlay" class="success-overlay fixed inset-0 flex items-center justify-center z-50 hidden">
+        <div class="text-center">
+            <div class="text-6xl animate-check">✅</div>
+            <p class="text-xl font-bold mt-4">Норматив сохранён!</p>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        let activeTab = 'list';
+
+        function showTab(tab) {
+            activeTab = tab;
+            document.getElementById('listView').classList.toggle('hidden', tab !== 'list');
+            document.getElementById('formView').classList.toggle('hidden', tab !== 'form');
+            document.getElementById('tabList').className = `flex-1 py-2 rounded-xl text-sm font-medium ${tab === 'list' ? 'tab-active' : 'tab-inactive'}`;
+            document.getElementById('tabForm').className = `flex-1 py-2 rounded-xl text-sm font-medium ${tab === 'form' ? 'tab-active' : 'tab-inactive'}`;
+
+            if (tab === 'form') {
+                tg.MainButton.setText('СОХРАНИТЬ НОРМАТИВ');
+                tg.MainButton.show();
+            } else {
+                tg.MainButton.hide();
+            }
+        }
+
+        const getVal = (id) => {
+            const v = document.getElementById(id).value;
+            return v ? parseFloat(v) : null;
+        };
+
+        tg.MainButton.onClick(async function () {
+            const form = document.getElementById('normForm');
+            if (!form.reportValidity()) return;
+
+            tg.MainButton.showProgress();
+
+            const data = {
+                dn: parseInt(document.getElementById('dn').value),
+                pn: parseInt(document.getElementById('pn').value),
+                sn: parseInt(document.getElementById('sn').value),
+                with_sand: document.getElementById('with_sand').checked,
+                resin_liner_kg: getVal('resin_liner_kg'),
+                resin_winder_kg: getVal('resin_winder_kg'),
+                resin_sand_kg: getVal('resin_sand_kg'),
+                cobalt_kg: getVal('cobalt_kg'),
+                peroxide_kg: getVal('peroxide_kg'),
+                polyester_gauze_m: getVal('polyester_gauze_m'),
+                veil_m: getVal('veil_m'),
+                stitched_mat_kg: getVal('stitched_mat_kg'),
+                ud300_m: getVal('ud300_m'),
+                fiberglass_2400tex_kg: getVal('fiberglass_2400tex_kg'),
+                sand_kg: getVal('sand_kg'),
+                ud250_m: getVal('ud250_m'),
+                sand_gauze_m: getVal('sand_gauze_m'),
+                wall_thickness_min_mm: getVal('wall_thickness_min_mm'),
+                wall_thickness_max_mm: getVal('wall_thickness_max_mm'),
+            };
+
+            try {
+                const response = await fetch('/api/norms', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data),
+                });
+
+                if (!response.ok) throw new Error(`Ошибка: ${response.status}`);
+
+                tg.MainButton.hideProgress();
+                tg.HapticFeedback.notificationOccurred('success');
+                document.getElementById('successOverlay').classList.remove('hidden');
+                setTimeout(() => location.reload(), 1200);
+
+            } catch (err) {
+                tg.MainButton.hideProgress();
+                tg.HapticFeedback.notificationOccurred('error');
+                tg.showAlert('Ошибка при сохранении!');
+            }
+        });
+    </script>
+</body>
+
+</html>

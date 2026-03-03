@@ -22,3 +22,8 @@ venv/
 
 # Docker volumes (data)
 postgres_data/
+
+# Local data (не для Git)
+chroma_db/
+data/docs/
+models/

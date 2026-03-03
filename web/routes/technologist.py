@@ -15,6 +15,7 @@ from sqlalchemy import select
 from db.database import async_session
 from db.models import DryMaterialLog, DryMaterialStage, Pipe, PipeStatus
 from web.schemas import DryMaterialLogCreate
+from web.services.stock_service import deduct_dry_materials
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -49,7 +50,7 @@ async def dry_materials_page(request: Request):
 
 @router.post("/api/dry_materials")
 async def create_dry_material_log(data: DryMaterialLogCreate):
-    """Сохраняет запись расхода сухих материалов в БД."""
+    """Сохраняет запись расхода сухих материалов в БД и списывает со склада."""
     try:
         async with async_session() as session:
             log = DryMaterialLog(
@@ -66,6 +67,19 @@ async def create_dry_material_log(data: DryMaterialLogCreate):
                 entered_by=data.telegram_id,
             )
             session.add(log)
+
+            # Автоматически списываем со склада
+            await deduct_dry_materials(session, {
+                "polyester_gauze_m": data.polyester_gauze_m,
+                "veil_m": data.veil_m,
+                "stitched_mat_kg": data.stitched_mat_kg,
+                "ud300_m": data.ud300_m,
+                "fiberglass_2400tex_kg": data.fiberglass_2400tex_kg,
+                "sand_kg": data.sand_kg,
+                "ud250_m": data.ud250_m,
+                "sand_gauze_m": data.sand_gauze_m,
+            })
+
             await session.commit()
     except Exception as e:
         logger.error("Ошибка при сохранении сухих материалов: %s", e)
