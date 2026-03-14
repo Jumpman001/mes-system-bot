@@ -14,6 +14,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import SQLAlchemyError
 
 from db.database import async_session
 from db.models import FinalVerdict, Pipe, PipeStatus, QCPassport, Task
@@ -118,9 +119,12 @@ async def upsert_qc_passport(data: QCPassportUpdate):
             await session.commit()
     except HTTPException:
         raise
+    except SQLAlchemyError as e:
+        logger.error("Ошибка базы данных при сохранении паспорта ОТК: %s", e)
+        raise HTTPException(status_code=500, detail="Ошибка базы данных при сохранении паспорта.")
     except Exception as e:
-        logger.error("Ошибка при сохранении паспорта ОТК: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.exception("Непредвиденная ошибка при сохранении паспорта ОТК: %s", e)
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
     return {"status": "ok"}
 
@@ -165,8 +169,11 @@ async def assign_serial_number(data: PipeIdentificationCreate):
             await session.commit()
     except HTTPException:
         raise
+    except SQLAlchemyError as e:
+        logger.error("Ошибка БД при присвоении серийного номера: %s", e)
+        raise HTTPException(status_code=500, detail="Ошибка базы данных.")
     except Exception as e:
-        logger.error("Ошибка при присвоении серийного номера: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.exception("Непредвиденная ошибка при присвоении серийного номера: %s", e)
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
     return {"status": "ok"}

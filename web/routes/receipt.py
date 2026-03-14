@@ -10,6 +10,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.exc import SQLAlchemyError
 
 from db.database import async_session
 from db.models import MaterialReceipt
@@ -48,8 +49,11 @@ async def create_receipt(data: ReceiptCreate):
             await update_stock(session, data.material_name, data.quantity, data.unit)
 
             await session.commit()
+    except SQLAlchemyError as e:
+        logger.error("Ошибка БД при сохранении прихода: %s", e)
+        raise HTTPException(status_code=500, detail="Ошибка базы данных.")
     except Exception as e:
-        logger.error("Ошибка при сохранении прихода: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.exception("Непредвиденная ошибка при сохранении прихода: %s", e)
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
     return {"status": "ok"}

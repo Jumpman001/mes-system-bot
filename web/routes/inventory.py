@@ -13,6 +13,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy import select, update
+from sqlalchemy.exc import SQLAlchemyError
 
 from db.database import async_session
 from db.models import MaterialStock
@@ -95,8 +96,11 @@ async def update_min_quantity(data: MinQuantityUpdate):
                 .values(min_quantity=data.min_quantity)
             )
             await session.commit()
+    except SQLAlchemyError as e:
+        logger.error("Ошибка БД при обновлении порога: %s", e)
+        raise HTTPException(status_code=500, detail="Ошибка базы данных.")
     except Exception as e:
-        logger.error("Ошибка при обновлении порога: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.exception("Непредвиденная ошибка при обновлении порога: %s", e)
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
     return {"status": "ok"}

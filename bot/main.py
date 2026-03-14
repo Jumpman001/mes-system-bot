@@ -9,9 +9,10 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.types import BotCommand
+from aiogram.types import BotCommand, ErrorEvent
 
 from core.config import settings
+from core.exceptions import MesBotError
 from bot.handlers.base import router as base_router
 from bot.handlers.users_admin import router as users_admin_router
 from bot.handlers.admin import router as admin_router
@@ -21,7 +22,6 @@ from bot.handlers.technologist import router as technologist_router
 from bot.handlers.lab import router as lab_router
 from bot.handlers.qc import router as qc_router
 from bot.handlers.report import router as report_router
-from bot.handlers.ai_assistant import router as ai_assistant_router
 from bot.handlers.inventory import router as inventory_router
 
 # ── Логирование ──────────────────────────────────────────────────────────────
@@ -69,9 +69,28 @@ async def main() -> None:
     dp.include_router(technologist_router)
     dp.include_router(lab_router)
     dp.include_router(qc_router)
-    dp.include_router(report_router)
-    dp.include_router(ai_assistant_router)
     dp.include_router(inventory_router)
+    
+    # Регистрация глобального обработчика ошибок
+    @dp.errors()
+    async def global_error_handler(event: ErrorEvent):
+        exception = event.exception
+        # Log the full exception traceback for debugging
+        logger.exception("Unhandled exception for Update ID %s: %s", event.update.update_id, exception)
+        
+        # Determine the user-friendly message
+        if isinstance(exception, MesBotError):
+            user_msg = f"⚠️ Ошибка: {str(exception)}"
+        else:
+            user_msg = "⚠️ Произошла непредвиденная ошибка. Пожалуйста, обратитесь к администратору."
+            
+        # Try to send it back contextually
+        if event.update.message:
+            await event.update.message.answer(user_msg)
+        elif event.update.callback_query:
+            if event.update.callback_query.message:
+                await event.update.callback_query.message.answer(user_msg)
+            await event.update.callback_query.answer()
 
     # Устанавливаем меню команд
     await set_bot_commands(bot)

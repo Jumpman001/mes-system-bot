@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 
 from db.database import async_session
 from db.models import ChemistryLog, ChemistryStage, Pipe, PipeStatus
@@ -71,8 +72,11 @@ async def create_chemistry_log(data: ChemistryLogCreate):
             })
 
             await session.commit()
+    except SQLAlchemyError as e:
+        logger.error("Ошибка БД при сохранении расхода химии: %s", e)
+        raise HTTPException(status_code=500, detail="Ошибка базы данных.")
     except Exception as e:
-        logger.error("Ошибка при сохранении расхода химии: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.exception("Непредвиденная ошибка при сохранении расхода химии: %s", e)
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
     return {"status": "ok"}

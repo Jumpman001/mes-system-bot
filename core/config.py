@@ -24,7 +24,13 @@ class Settings(BaseSettings):
 
     @property
     def DATABASE_URL(self) -> str:
-        """Асинхронный DSN для asyncpg."""
+        """Асинхронный DSN для asyncpg. Поддержка TCP и Unix-сокетов."""
+        if self.DB_HOST.startswith("/"):
+            # Cloud SQL Auth Proxy: подключение через Unix-сокет
+            return (
+                f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}"
+                f"@/{self.DB_NAME}?host={self.DB_HOST}"
+            )
         return (
             f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}"
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
@@ -38,11 +44,11 @@ class Settings(BaseSettings):
     WEB_PORT: int = 8000
     WEB_URL: str = "https://wvjxi-62-89-208-188.a.free.pinggy.link"
 
-    # ── Google Gemini (RAG) ──────────────────────────────────────────────
-    GEMINI_API_KEY: str = ""
+    # ── Webhook (Cloud Run) ──────────────────────────────────────────────
+    WEBHOOK_SECRET: str = ""
+    PORT: int = 8080
 
-    # ── Grok (xAI) ──────────────────────────────────────────────────────
-    GROK_API_KEY: str = ""
+
 
 
 # Синглтон — импортируй из любого модуля

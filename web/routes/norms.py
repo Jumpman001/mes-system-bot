@@ -13,6 +13,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 
 from db.database import async_session
 from db.models import PipeNorm
@@ -120,9 +121,12 @@ async def create_or_update_norm(data: PipeNormCreate):
                 logger.info("Норматив создан: DN%d PN%d SN%d", data.dn, data.pn, data.sn)
 
             await session.commit()
+    except SQLAlchemyError as e:
+        logger.error("Ошибка БД при сохранении норматива: %s", e)
+        raise HTTPException(status_code=500, detail="Ошибка базы данных.")
     except Exception as e:
-        logger.error("Ошибка при сохранении норматива: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.exception("Непредвиденная ошибка при сохранении норматива: %s", e)
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
     return {"status": "ok"}
 

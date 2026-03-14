@@ -1,0 +1,9 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'europe-central2-docker.pkg.dev/messystembot/cloud-run-source-deploy/mes-bot', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'europe-central2-docker.pkg.dev/messystembot/cloud-run-source-deploy/mes-bot']
+
+images:
+  - 'europe-central2-docker.pkg.dev/messystembot/cloud-run-source-deploy/mes-bot'

@@ -1,0 +1,6 @@
+.venv
+__pycache__
+.env
+.git
+chroma_db/
+postgres_data/

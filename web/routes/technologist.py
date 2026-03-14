@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 
 from db.database import async_session
 from db.models import DryMaterialLog, DryMaterialStage, Pipe, PipeStatus
@@ -81,8 +82,11 @@ async def create_dry_material_log(data: DryMaterialLogCreate):
             })
 
             await session.commit()
+    except SQLAlchemyError as e:
+        logger.error("Ошибка БД при сохранении сухих материалов: %s", e)
+        raise HTTPException(status_code=500, detail="Ошибка базы данных.")
     except Exception as e:
-        logger.error("Ошибка при сохранении сухих материалов: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.exception("Непредвиденная ошибка при сохранении сухих материалов: %s", e)
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
 
     return {"status": "ok"}
