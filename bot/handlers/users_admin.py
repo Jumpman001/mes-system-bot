@@ -7,6 +7,7 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from sqlalchemy import select
 
+from bot.auth import ensure_message_role
 from db.database import async_session
 from db.models import User, UserRole
 
@@ -30,8 +31,11 @@ async def cmd_add_user(message: Message) -> None:
     """
     /add_user <telegram_id> <role> <ФИО>
     Если пользователь деактивирован — реактивирует и обновляет роль.
-    TODO: ограничить доступ — разрешить только пользователям с ролью admin.
+    Доступно только администраторам (первый админ — из настройки ADMIN_IDS).
     """
+    if not await ensure_message_role(message, UserRole.ADMIN):
+        return
+
     args = message.text.split(maxsplit=3)
 
     if len(args) < 4:
@@ -111,8 +115,11 @@ async def cmd_remove_user(message: Message) -> None:
     """
     /remove_user <telegram_id>
     Деактивирует пользователя (is_active = False).
-    TODO: ограничить доступ — разрешить только пользователям с ролью admin.
+    Доступно только администраторам.
     """
+    if not await ensure_message_role(message, UserRole.ADMIN):
+        return
+
     args = message.text.split()
 
     if len(args) < 2:

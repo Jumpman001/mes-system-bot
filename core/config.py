@@ -42,6 +42,20 @@ class Settings(BaseSettings):
     # Срок годности подписи initData Mini App (сек). 24 часа по умолчанию.
     WEBAPP_INIT_DATA_TTL: int = 86400
 
+    # Telegram ID «корневых» админов через запятую — для первичной загрузки
+    # (первый админ создаётся не из БД, а отсюда). Пример: "111,222".
+    ADMIN_IDS: str = ""
+
+    @property
+    def admin_ids(self) -> set[int]:
+        """Парсит ADMIN_IDS в множество int (пустые/мусорные значения пропускаются)."""
+        ids: set[int] = set()
+        for part in self.ADMIN_IDS.split(","):
+            part = part.strip()
+            if part.isdigit():
+                ids.add(int(part))
+        return ids
+
     # ── FastAPI (Mini App) ───────────────────────────────────────────────
     WEB_HOST: str = "0.0.0.0"
     WEB_PORT: int = 8000

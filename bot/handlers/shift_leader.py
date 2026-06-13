@@ -24,11 +24,12 @@ from aiogram.types import (
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from bot.auth import ensure_callback_role, ensure_message_role
 from core.config import settings
 from core.utils import format_local_time
 from core.workflow import NEXT_STATUS, STATUS_STAGE, VISIBLE_STATUSES
 from db.database import async_session
-from db.models import Pipe, PipeStatus, ProductionStage
+from db.models import Pipe, PipeStatus, ProductionStage, UserRole
 
 router = Router(name="shift_leader")
 
@@ -79,6 +80,8 @@ RUNNING_STATUSES = {
 @router.message(Command("work"))
 async def cmd_work(message: Message) -> None:
     """Показать трубы, доступные для управления."""
+    if not await ensure_message_role(message, UserRole.SHIFT_LEADER):
+        return
     async with async_session() as session:
         result = await session.execute(
             select(Pipe)
@@ -193,6 +196,8 @@ def _build_pipe_control_keyboard(pipe: Pipe, has_active_stage: bool) -> InlineKe
 @router.callback_query(F.data.startswith("stage_start:"))
 async def start_stage(callback: CallbackQuery) -> None:
     """Универсальный обработчик запуска любой стадии."""
+    if not await ensure_callback_role(callback, UserRole.SHIFT_LEADER):
+        return
     pipe_id = int(callback.data.split(":")[1])
     now = datetime.now(timezone.utc)
 
@@ -240,6 +245,8 @@ async def start_stage(callback: CallbackQuery) -> None:
 @router.callback_query(F.data.startswith("stage_stop:"))
 async def stop_stage(callback: CallbackQuery) -> None:
     """Универсальный обработчик остановки любой стадии."""
+    if not await ensure_callback_role(callback, UserRole.SHIFT_LEADER):
+        return
     pipe_id = int(callback.data.split(":")[1])
     now = datetime.now(timezone.utc)
 
@@ -335,6 +342,8 @@ async def back_to_list(callback: CallbackQuery) -> None:
 @router.message(Command("receipt"))
 async def cmd_receipt(message: Message) -> None:
     """Открывает Mini App для ввода прихода сырья на склад."""
+    if not await ensure_message_role(message, UserRole.SHIFT_LEADER):
+        return
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text="📦 Открыть форму прихода",
