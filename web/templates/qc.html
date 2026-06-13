@@ -276,7 +276,7 @@
             if (!form.reportValidity()) { tg.MainButton.hideProgress(); return; }
             const telegramId = tg.initDataUnsafe?.user?.id;
             if (!telegramId) { tg.MainButton.hideProgress(); tg.HapticFeedback.notificationOccurred('error'); tg.showAlert('Ошибка: не удалось получить Telegram ID.'); return; }
-            const data = { pipe_id: parseInt(pipeSelect.value), telegram_id: telegramId };
+            const data = { pipe_id: parseInt(pipeSelect.value) };
             if (blockSand.style.display !== 'none') { data.sand_layer_1_mm = getVal('sand_layer_1_mm'); data.sand_layer_2_mm = getVal('sand_layer_2_mm'); }
             if (blockApproval.style.display !== 'none') { data.turning_approved = document.getElementById('turning_approved').checked; }
             if (blockGeometry.style.display !== 'none') {
@@ -289,7 +289,7 @@
             }
             if (blockFinal.style.display !== 'none') { data.visual_inspection_notes = document.getElementById('visual_inspection_notes').value || null; data.final_verdict = document.getElementById('final_verdict').value || null; }
             try {
-                const resp = await fetch('/api/qc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                const resp = await fetch('/api/qc', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'tma ' + tg.initData }, body: JSON.stringify(data) });
                 if (!resp.ok) throw new Error(`Ошибка: ${resp.status}`);
                 tg.MainButton.hideProgress(); tg.HapticFeedback.notificationOccurred('success');
                 overlay.classList.remove('hidden'); setTimeout(() => tg.close(), 1200);

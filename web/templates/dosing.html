@@ -157,13 +157,12 @@
                 resin_kg: parseFloat(document.getElementById('resin_kg').value),
                 cobalt_kg: parseFloat(document.getElementById('cobalt_kg').value),
                 peroxide_kg: parseFloat(document.getElementById('peroxide_kg').value),
-                telegram_id: telegramId,
             };
 
             try {
                 const resp = await fetch('/api/dosing', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'tma ' + tg.initData },
                     body: JSON.stringify(data),
                 });
 

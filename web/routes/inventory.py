@@ -5,34 +5,32 @@ GET  /api/inventory — JSON с остатками
 POST /api/inventory/min — обновить минимальный порог
 """
 
-import logging
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy import select, update
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.database import async_session
-from db.models import MaterialStock
+from db.database import get_session
+from db.models import MaterialStock, User, UserRole
+from web.auth import require_roles
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
 @router.get("/inventory", response_class=HTMLResponse)
-async def inventory_page(request: Request):
+async def inventory_page(request: Request, session: AsyncSession = Depends(get_session)):
     """Отдаёт HTML-страницу склада."""
-    async with async_session() as session:
-        result = await session.execute(
-            select(MaterialStock).order_by(MaterialStock.material_name)
-        )
-        items = result.scalars().all()
+    result = await session.execute(
+        select(MaterialStock).order_by(MaterialStock.material_name)
+    )
+    items = result.scalars().all()
 
     stock_list = []
     for item in items:
@@ -60,13 +58,12 @@ async def inventory_page(request: Request):
 
 
 @router.get("/api/inventory")
-async def get_inventory():
+async def get_inventory(session: AsyncSession = Depends(get_session)):
     """JSON-список остатков для бота или внешних интеграций."""
-    async with async_session() as session:
-        result = await session.execute(
-            select(MaterialStock).order_by(MaterialStock.material_name)
-        )
-        items = result.scalars().all()
+    result = await session.execute(
+        select(MaterialStock).order_by(MaterialStock.material_name)
+    )
+    items = result.scalars().all()
 
     return [
         {
@@ -86,21 +83,16 @@ class MinQuantityUpdate(BaseModel):
 
 
 @router.post("/api/inventory/min")
-async def update_min_quantity(data: MinQuantityUpdate):
+async def update_min_quantity(
+    data: MinQuantityUpdate,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_roles(UserRole.SHIFT_LEADER)),
+):
     """Обновить минимальный порог материала."""
-    try:
-        async with async_session() as session:
-            await session.execute(
-                update(MaterialStock)
-                .where(MaterialStock.id == data.material_id)
-                .values(min_quantity=data.min_quantity)
-            )
-            await session.commit()
-    except SQLAlchemyError as e:
-        logger.error("Ошибка БД при обновлении порога: %s", e)
-        raise HTTPException(status_code=500, detail="Ошибка базы данных.")
-    except Exception as e:
-        logger.exception("Непредвиденная ошибка при обновлении порога: %s", e)
-        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+    await session.execute(
+        update(MaterialStock)
+        .where(MaterialStock.id == data.material_id)
+        .values(min_quantity=data.min_quantity)
+    )
 
     return {"status": "ok"}

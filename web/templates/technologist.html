@@ -212,7 +212,6 @@
             const data = {
                 pipe_id: parseInt(document.getElementById('pipe_id').value),
                 stage: stage,
-                telegram_id: telegramId,
             };
 
             if (stage === 'liner') {
@@ -230,7 +229,7 @@
             try {
                 const resp = await fetch('/api/dry_materials', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'tma ' + tg.initData },
                     body: JSON.stringify(data),
                 });
 

@@ -1,8 +1,14 @@
 """
 Pydantic-схемы для Web API.
+
+Примечание: поле telegram_id больше НЕ принимается из тела запроса.
+Личность пользователя берётся из подписанного Telegram initData
+(см. web/auth.py, зависимость get_current_user).
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+from db.models import FinalVerdict
 
 
 class ReceiptCreate(BaseModel):
@@ -11,7 +17,6 @@ class ReceiptCreate(BaseModel):
     quantity: float
     unit: str
     batch_number: str | None = None
-    telegram_id: int
 
 
 class ChemistryLogCreate(BaseModel):
@@ -21,7 +26,6 @@ class ChemistryLogCreate(BaseModel):
     resin_kg: float
     cobalt_kg: float
     peroxide_kg: float
-    telegram_id: int
 
 
 class DryMaterialLogCreate(BaseModel):
@@ -41,8 +45,6 @@ class DryMaterialLogCreate(BaseModel):
     ud250_m: float | None = None
     sand_gauze_m: float | None = None
 
-    telegram_id: int
-
 
 class LabTestCreate(BaseModel):
     """Схема ввода лабораторных тестов (Лаборант)."""
@@ -59,8 +61,6 @@ class LabTestCreate(BaseModel):
     absorbency_result: str | None = None
     is_homogeneous: bool | None = None
     theoretical_resin_percent: float | None = None
-
-    telegram_id: int
 
 
 class QCPassportUpdate(BaseModel):
@@ -91,11 +91,39 @@ class QCPassportUpdate(BaseModel):
     visual_inspection_notes: str | None = None
     final_verdict: str | None = None  # "passed" / "rejected"
 
-    telegram_id: int
-
 
 class PipeIdentificationCreate(BaseModel):
     """Схема присвоения серийного номера трубе (Инженер ОТК)."""
     pipe_id: int
     new_serial_number: str
-    telegram_id: int
+
+
+# ── Схемы ответов (Read) ─────────────────────────────────────────────────────
+
+class QCPassportData(BaseModel):
+    """Паспорт ОТК для отдачи на фронт. Собирается прямо из ORM-модели."""
+    model_config = ConfigDict(from_attributes=True)
+
+    sand_layer_1_mm: float | None = None
+    sand_layer_2_mm: float | None = None
+    turning_approved: bool | None = None
+    pipe_circumference_mm: float | None = None
+    bell_circumference_mm: float | None = None
+    wall_thickness_mm: float | None = None
+    bell_wall_thickness_mm: float | None = None
+    nipple_outer_diameter_mm: float | None = None
+    channel_diameter_1_mm: float | None = None
+    channel_diameter_2_mm: float | None = None
+    channel_depth_mm: float | None = None
+    channel_width_mm: float | None = None
+    machined_length_mm: float | None = None
+    visual_inspection_notes: str | None = None
+    final_verdict: FinalVerdict | None = None
+
+
+class PipeQCData(BaseModel):
+    """Данные трубы + её паспорт ОТК (ответ GET /api/qc/pipe/{id})."""
+    status: str
+    dn: int | None = None
+    serial_number: str
+    passport: QCPassportData | None = None

@@ -162,7 +162,7 @@
             const telegramId = tg.initDataUnsafe?.user?.id;
             if (!telegramId) { tg.MainButton.hideProgress(); tg.HapticFeedback.notificationOccurred('error'); tg.showAlert('Ошибка: не удалось получить Telegram ID.'); return; }
             const testType = testTypeSelect.value;
-            const data = { pipe_id: parseInt(document.getElementById('pipe_id').value), test_type: testType, telegram_id: telegramId };
+            const data = { pipe_id: parseInt(document.getElementById('pipe_id').value), test_type: testType };
             if (testType === 'gel_time_liner' || testType === 'gel_time_winder') {
                 data.gel_time_minutes = getVal('gel_time_minutes');
                 data.room_temperature_c = getVal('room_temperature_c');
@@ -174,7 +174,7 @@
                 data.theoretical_resin_percent = getVal('theoretical_resin_percent');
             }
             try {
-                const resp = await fetch('/api/lab', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+                const resp = await fetch('/api/lab', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'tma ' + tg.initData }, body: JSON.stringify(data) });
                 if (!resp.ok) throw new Error(`Ошибка: ${resp.status}`);
                 tg.MainButton.hideProgress(); tg.HapticFeedback.notificationOccurred('success');
                 overlay.classList.remove('hidden'); setTimeout(() => tg.close(), 1200);

@@ -170,13 +170,12 @@
                 quantity: parseFloat(document.getElementById('quantity').value),
                 unit: document.getElementById('unit').value,
                 batch_number: document.getElementById('batch_number').value || null,
-                telegram_id: telegramId,
             };
 
             try {
                 const response = await fetch('/api/receipt', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'tma ' + tg.initData },
                     body: JSON.stringify(data),
                 });
 

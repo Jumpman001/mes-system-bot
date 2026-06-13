@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     # ── Telegram Bot ─────────────────────────────────────────────────────
     BOT_TOKEN: str = ""
 
+    # Срок годности подписи initData Mini App (сек). 24 часа по умолчанию.
+    WEBAPP_INIT_DATA_TTL: int = 86400
+
     # ── FastAPI (Mini App) ───────────────────────────────────────────────
     WEB_HOST: str = "0.0.0.0"
     WEB_PORT: int = 8000

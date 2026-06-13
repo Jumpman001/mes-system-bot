@@ -155,13 +155,12 @@
                 const data = {
                     pipe_id: parseInt(pipeSelect.value),
                     new_serial_number: serialInput.value.trim(),
-                    telegram_id: telegramId
                 };
 
                 try {
                     const resp = await fetch('/api/qc_naming', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', 'Authorization': 'tma ' + tg.initData },
                         body: JSON.stringify(data)
                     });
 

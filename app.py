@@ -3,6 +3,7 @@
 Запуск: uvicorn app:app --host 0.0.0.0 --port 8080
 """
 
+import hmac
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -16,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from core.config import settings
 from core.exceptions import MesBotError
+from web.errors import register_exception_handlers
 
 # ── Роутеры бота ─────────────────────────────────────────────────────────────
 from bot.handlers.base import router as base_router
@@ -95,10 +97,11 @@ async def lifespan(_app: FastAPI):
         logger.warning("⚠️ Не удалось установить webhook (%s). "
                        "Обновите WEB_URL и передеплойте.", e)
     yield
-    try:
-        await bot.delete_webhook()
-    except Exception:
-        pass
+    # Убираем удаление вебхука при остановке контейнера Cloud Run
+    # try:
+    #     await bot.delete_webhook()
+    # except Exception:
+    #     pass
     await bot.session.close()
     logger.info("🛑 Сессия закрыта.")
 
@@ -106,10 +109,21 @@ async def lifespan(_app: FastAPI):
 # ── FastAPI App ──────────────────────────────────────────────────────────────
 app = FastAPI(title="MES Bot + Mini App", version="1.0.0", lifespan=lifespan)
 
+# Единые обработчики ошибок БД / непредвиденных исключений
+register_exception_handlers(app)
+
 
 # Webhook endpoint
 @app.post(WEBHOOK_PATH)
 async def telegram_webhook(request: Request) -> Response:
+    # Проверяем секрет: Telegram присылает его в заголовке при каждом апдейте.
+    # Без этого любой, кто знает URL, мог бы слать боту поддельные апдейты.
+    if settings.WEBHOOK_SECRET:
+        secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+        if not secret or not hmac.compare_digest(secret, settings.WEBHOOK_SECRET):
+            logger.warning("Webhook: неверный или отсутствующий secret token.")
+            return Response(status_code=403)
+
     update = Update.model_validate(await request.json(), context={"bot": bot})
     await dp.feed_update(bot, update)
     return Response(status_code=200)

@@ -358,7 +358,7 @@
             try {
                 const response = await fetch('/api/norms', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'tma ' + tg.initData },
                     body: JSON.stringify(data),
                 });
 

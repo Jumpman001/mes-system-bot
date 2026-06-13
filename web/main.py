@@ -8,6 +8,8 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from web.errors import register_exception_handlers
+
 from web.routes.receipt import router as receipt_router
 from web.routes.dosing import router as dosing_router
 from web.routes.technologist import router as technologist_router
@@ -27,6 +29,9 @@ STATIC_DIR.mkdir(exist_ok=True)
 
 # ── FastAPI App ──────────────────────────────────────────────────────────────
 app = FastAPI(title="MES Mini App", version="1.0.0")
+
+# Единые обработчики ошибок БД / непредвиденных исключений
+register_exception_handlers(app)
 
 # Статика и шаблоны
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
