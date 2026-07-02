@@ -60,7 +60,14 @@ def test_stage_for():
 
 
 def test_qc_approval_transition():
-    assert next_status_after_qc_approval(PipeStatus.WAITING_QC_APPROVAL) == PipeStatus.TURNING
+    # Труба с раструбом → токарка
+    assert next_status_after_qc_approval(
+        PipeStatus.WAITING_QC_APPROVAL, has_bell=True
+    ) == PipeStatus.TURNING
+    # Прямая труба → токарка пропускается, сразу трубосъём (Шаг 5 бизнес-процесса)
+    assert next_status_after_qc_approval(
+        PipeStatus.WAITING_QC_APPROVAL, has_bell=False
+    ) == PipeStatus.EXTRACTION
     # разрешение в любом другом статусе статус не меняет
     assert next_status_after_qc_approval(PipeStatus.LINER) is None
     assert next_status_after_qc_approval(PipeStatus.TURNING) is None

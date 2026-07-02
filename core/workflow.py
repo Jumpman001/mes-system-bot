@@ -56,13 +56,18 @@ def next_status_after_stop(status: PipeStatus) -> PipeStatus | None:
     return NEXT_STATUS.get(status)
 
 
-def next_status_after_qc_approval(status: PipeStatus) -> PipeStatus | None:
+def next_status_after_qc_approval(
+    status: PipeStatus, has_bell: bool = True
+) -> PipeStatus | None:
     """
-    После разрешения ОТК на токарку труба из ожидания переходит к токарке.
+    После разрешения ОТК труба из ожидания идёт дальше:
+    - с раструбом/ниппелем (has_bell=True) → токарка (Шаг 5);
+    - прямая труба (has_bell=False) → токарка ПРОПУСКАЕТСЯ,
+      сразу трубосъём (Шаг 6) — согласно бизнес-процессу.
     Для прочих статусов разрешение статус не меняет (None).
     """
     if status == PipeStatus.WAITING_QC_APPROVAL:
-        return PipeStatus.TURNING
+        return PipeStatus.TURNING if has_bell else PipeStatus.EXTRACTION
     return None
 
 

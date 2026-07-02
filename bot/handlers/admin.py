@@ -285,6 +285,7 @@ async def confirm_task(callback: CallbackQuery, state: FSMContext) -> None:
             sand_layers=data["sand_layers"],
             has_bell=data["has_bell"],
             quantity=data["quantity"],
+            photo_file_id=data.get("photo_file_id"),
             created_by=callback.from_user.id,
         )
         session.add(task)

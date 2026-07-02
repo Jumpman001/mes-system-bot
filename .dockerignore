@@ -1,6 +1,36 @@
-.venv
-__pycache__
+# Секреты — НИКОГДА не зашивать в образ
 .env
+.env.*
+
+# Виртуальные окружения и кэши
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+
+# Git и IDE
 .git
+.gitignore
+.vscode
+.idea
+
+# Данные и документы — не нужны в контейнере
 chroma_db/
 postgres_data/
+data/
+docs/
+models/
+
+# Тесты и метафайлы
+tests/
+conftest.py
+*.md
+walkthrough.md.resolved
+.DS_Store
+.agent
+
+# Docker-файлы самого проекта
+docker-compose.yml
+cloudbuild.yaml
+migrate_gcp.sh

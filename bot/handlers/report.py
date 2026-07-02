@@ -12,6 +12,8 @@ from aiogram.types import Message
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
+from bot.auth import ensure_registered
+from core.utils import format_local_time
 from db.database import async_session
 from db.models import Pipe
 
@@ -30,7 +32,9 @@ class PipeReportFSM(StatesGroup):
 
 @router.message(Command("pipe_report"))
 async def cmd_pipe_report(message: Message, state: FSMContext) -> None:
-    """Запрос серийного номера для досье."""
+    """Запрос серийного номера для досье. Только для зарегистрированных."""
+    if not await ensure_registered(message):
+        return
     await state.clear()
     await state.set_state(PipeReportFSM.serial_number)
     await message.answer(
@@ -117,8 +121,9 @@ async def process_serial_number(message: Message, state: FSMContext) -> None:
         }
         for s in pipe.stages:
             name = stage_names.get(s.stage.value, s.stage.value)
-            start = s.start_time.strftime("%d.%m %H:%M") if s.start_time else "—"
-            end = s.end_time.strftime("%d.%m %H:%M") if s.end_time else "—"
+            # format_local_time переводит UTC в локальную таймзону цеха
+            start = format_local_time(s.start_time)
+            end = format_local_time(s.end_time)
             lines.append(f"  • {name}: {start} → {end}")
         lines.append("")
 
@@ -234,4 +239,12 @@ async def process_serial_number(message: Message, state: FSMContext) -> None:
 
     report = "\n".join(lines)
     await message.answer(report, parse_mode="HTML")
+
+    # Фото-схема трубы, если админ прикреплял её при создании задачи
+    if pipe.task and pipe.task.photo_file_id:
+        await message.answer_photo(
+            pipe.task.photo_file_id,
+            caption=f"📐 Схема трубы {pipe.serial_number}",
+        )
+
     await state.clear()

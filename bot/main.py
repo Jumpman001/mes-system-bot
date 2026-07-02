@@ -1,28 +1,14 @@
 """
-Точка входа Telegram-бота.
-Инициализация Bot, Dispatcher, подключение роутеров, запуск polling.
+Точка входа Telegram-бота в режиме polling (локальная разработка).
+Прод работает через webhook — см. app.py. Сборка бота общая: bot/factory.py.
+
+Запуск: python -m bot.main
 """
 
 import asyncio
 import logging
 
-from aiogram import Bot, Dispatcher
-from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
-from aiogram.types import BotCommand, ErrorEvent
-
-from core.config import settings
-from core.exceptions import MesBotError
-from bot.handlers.base import router as base_router
-from bot.handlers.users_admin import router as users_admin_router
-from bot.handlers.admin import router as admin_router
-from bot.handlers.shift_leader import router as shift_leader_router
-from bot.handlers.dosing import router as dosing_router
-from bot.handlers.technologist import router as technologist_router
-from bot.handlers.lab import router as lab_router
-from bot.handlers.qc import router as qc_router
-from bot.handlers.report import router as report_router
-from bot.handlers.inventory import router as inventory_router
+from bot.factory import create_bot, create_dispatcher, setup_bot_commands
 
 # ── Логирование ──────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -32,68 +18,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def set_bot_commands(bot: Bot) -> None:
-    """Устанавливает список команд для синей кнопки меню Telegram."""
-    commands = [
-        BotCommand(command="start", description="Главное меню и обновление клавиатуры"),
-        BotCommand(command="work", description="🏭 Управление цехом (Нач. смены)"),
-        BotCommand(command="receipt", description="📦 Приход сырья (Нач. смены)"),
-        BotCommand(command="chemistry", description="🧪 Мокрая химия (Дозировщик)"),
-        BotCommand(command="dry_materials", description="🧵 Сухие материалы (Технолог)"),
-        BotCommand(command="lab", description="🔬 Тесты (Лаборант)"),
-        BotCommand(command="qc_passport", description="🛂 Паспорт качества (ОТК)"),
-        BotCommand(command="naming", description="🏷 Присвоение номеров (ОТК)"),
-        BotCommand(command="new_task", description="📋 Новая задача (Админ)"),
-        BotCommand(command="pipe_report", description="📑 Досье на трубу"),
-        BotCommand(command="ask", description="🤖 Задать вопрос по документации"),
-        BotCommand(command="stock", description="📦 Остатки склада"),
-    ]
-    await bot.set_my_commands(commands)
-    logger.info("Меню команд установлено (%d команд)", len(commands))
-
-
 async def main() -> None:
-    """Запуск бота."""
-    bot = Bot(
-        token=settings.BOT_TOKEN,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-    )
-    dp = Dispatcher()
+    """Запуск бота (polling)."""
+    bot = create_bot()
+    dp = create_dispatcher()
 
-    # Подключаем роутеры (base ПЕРВЫМ для /start)
-    dp.include_router(base_router)
-    dp.include_router(users_admin_router)
-    dp.include_router(admin_router)
-    dp.include_router(shift_leader_router)
-    dp.include_router(dosing_router)
-    dp.include_router(technologist_router)
-    dp.include_router(lab_router)
-    dp.include_router(qc_router)
-    dp.include_router(inventory_router)
-    
-    # Регистрация глобального обработчика ошибок
-    @dp.errors()
-    async def global_error_handler(event: ErrorEvent):
-        exception = event.exception
-        # Log the full exception traceback for debugging
-        logger.exception("Unhandled exception for Update ID %s: %s", event.update.update_id, exception)
-        
-        # Determine the user-friendly message
-        if isinstance(exception, MesBotError):
-            user_msg = f"⚠️ Ошибка: {str(exception)}"
-        else:
-            user_msg = "⚠️ Произошла непредвиденная ошибка. Пожалуйста, обратитесь к администратору."
-            
-        # Try to send it back contextually
-        if event.update.message:
-            await event.update.message.answer(user_msg)
-        elif event.update.callback_query:
-            if event.update.callback_query.message:
-                await event.update.callback_query.message.answer(user_msg)
-            await event.update.callback_query.answer()
-
-    # Устанавливаем меню команд
-    await set_bot_commands(bot)
+    await setup_bot_commands(bot)
 
     logger.info("Бот запущен. Polling...")
     try:

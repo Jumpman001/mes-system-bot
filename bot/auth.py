@@ -63,6 +63,22 @@ async def ensure_message_role(message: Message, *roles: UserRole) -> bool:
     return True
 
 
+async def ensure_registered(message: Message) -> bool:
+    """
+    Любой активный зарегистрированный пользователь (роль не важна).
+    Для команд «на чтение» вроде /stock и /pipe_report — данные производства
+    не должны быть видны случайным людям, написавшим боту.
+    """
+    role = await get_effective_role(message.from_user.id)
+    if role is None:
+        await message.answer(
+            "⛔ Вы не зарегистрированы в системе.\n"
+            "Передайте ваш Telegram ID руководителю для регистрации."
+        )
+        return False
+    return True
+
+
 async def ensure_callback_role(callback: CallbackQuery, *roles: UserRole) -> bool:
     """То же для callback-кнопок (показывает alert и возвращает False)."""
     role = await get_effective_role(callback.from_user.id)

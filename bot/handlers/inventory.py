@@ -8,6 +8,7 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
+from bot.auth import ensure_registered
 from core.config import settings
 from db.database import async_session
 from db.models import MaterialStock
@@ -20,6 +21,8 @@ logger = logging.getLogger(__name__)
 @router.message(Command("stock"))
 async def cmd_stock(message: Message) -> None:
     """Показывает остатки склада — текст + кнопка на Mini App."""
+    if not await ensure_registered(message):
+        return
 
     async with async_session() as session:
         result = await session.execute(

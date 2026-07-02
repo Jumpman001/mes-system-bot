@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     DB_PASSWORD: str = "mes_password"
     DB_NAME: str = "mes_db"
 
+    # Пул на ОДИН инстанс Cloud Run. db-f1-micro держит ~25 соединений,
+    # поэтому держим маленьким (5 инстансов × (3+2) = 25 максимум).
+    DB_POOL_SIZE: int = 3
+    DB_MAX_OVERFLOW: int = 2
+
     @property
     def DATABASE_URL(self) -> str:
         """Асинхронный DSN для asyncpg. Поддержка TCP и Unix-сокетов."""
@@ -59,7 +64,12 @@ class Settings(BaseSettings):
     # ── FastAPI (Mini App) ───────────────────────────────────────────────
     WEB_HOST: str = "0.0.0.0"
     WEB_PORT: int = 8000
-    WEB_URL: str = "https://wvjxi-62-89-208-188.a.free.pinggy.link"
+    # Публичный HTTPS-URL сервиса (Cloud Run). ОБЯЗАТЕЛЬНО задать в проде:
+    # на него ставится webhook и открываются кнопки Mini App.
+    WEB_URL: str = ""
+
+    # Локальная таймзона цеха — для отображения времени пользователям
+    TIMEZONE: str = "Asia/Dushanbe"
 
     # ── Webhook (Cloud Run) ──────────────────────────────────────────────
     WEBHOOK_SECRET: str = ""

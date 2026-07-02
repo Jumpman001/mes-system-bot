@@ -88,7 +88,11 @@ async def upsert_qc_passport(
     now = datetime.now(timezone.utc)
 
     pipe = (
-        await session.execute(select(Pipe).where(Pipe.id == data.pipe_id))
+        await session.execute(
+            select(Pipe)
+            .options(selectinload(Pipe.task))  # нужен task.has_bell для маршрутизации
+            .where(Pipe.id == data.pipe_id)
+        )
     ).scalar_one_or_none()
     if not pipe:
         raise HTTPException(status_code=404, detail="Труба не найдена")
@@ -112,7 +116,9 @@ async def upsert_qc_passport(
         passport.turning_approved_by = user.telegram_id
         passport.turning_approved_at = now
         if data.turning_approved:
-            new_status = next_status_after_qc_approval(pipe.status)
+            # Прямая труба (без раструба) пропускает токарку → сразу трубосъём
+            has_bell = pipe.task.has_bell if pipe.task else True
+            new_status = next_status_after_qc_approval(pipe.status, has_bell)
             if new_status:
                 pipe.status = new_status
 
