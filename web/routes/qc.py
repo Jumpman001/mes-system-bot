@@ -33,6 +33,23 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 HIDDEN_STATUSES = {PipeStatus.CREATED, PipeStatus.ACCEPTED, PipeStatus.REJECTED}
 
+# Понятные названия полей — для сообщений «поле уже заполнено»
+QC_FIELD_LABELS = {
+    "sand_layer_1_mm": "толщина слоя песка 1",
+    "sand_layer_2_mm": "толщина слоя песка 2",
+    "pipe_circumference_mm": "окружность трубы",
+    "bell_circumference_mm": "окружность раструба",
+    "wall_thickness_mm": "толщина стенки",
+    "bell_wall_thickness_mm": "толщина стенки раструба",
+    "nipple_outer_diameter_mm": "наружный диаметр ниппеля",
+    "channel_diameter_1_mm": "диаметр канала 1",
+    "channel_diameter_2_mm": "диаметр канала 2",
+    "channel_depth_mm": "глубина каналов",
+    "channel_width_mm": "ширина каналов",
+    "machined_length_mm": "длина обработанной части",
+    "visual_inspection_notes": "замечания визуального контроля",
+}
+
 # Поля паспорта, которые обновляются напрямую из тела запроса (если не None)
 QC_UPDATE_FIELDS = {
     "sand_layer_1_mm", "sand_layer_2_mm",
@@ -107,10 +124,29 @@ async def upsert_qc_passport(
         passport = QCPassport(pipe_id=data.pipe_id)
         session.add(passport)
 
+    # Первое заполнение поля — свободно. Изменение УЖЕ заполненного поля
+    # считается правкой и требует заявки: иначе ОТК мог бы незаметно
+    # переписать замеры задним числом.
+    locked: list[str] = []
     for field in QC_UPDATE_FIELDS:
         val = getattr(data, field)
-        if val is not None:
-            setattr(passport, field, val)
+        if val is None:
+            continue
+        current = getattr(passport, field)
+        if current is not None and current != val:
+            locked.append(field)
+            continue
+        setattr(passport, field, val)
+
+    if locked:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Эти поля уже заполнены и изменить их можно только "
+                "через заявку на исправление: "
+                + ", ".join(QC_FIELD_LABELS.get(f, f) for f in locked)
+            ),
+        )
 
     if data.turning_approved is not None:
         passport.turning_approved = data.turning_approved
@@ -129,6 +165,13 @@ async def upsert_qc_passport(
 
     if data.final_verdict is not None:
         verdict = FinalVerdict(data.final_verdict)
+        # Вердикт закрывает трубу — переписать его нельзя
+        if passport.final_verdict is not None and passport.final_verdict != verdict:
+            raise HTTPException(
+                status_code=409,
+                detail="Финальный вердикт уже выставлен. Изменение — только "
+                       "через заявку на исправление с согласия администратора.",
+            )
         passport.final_verdict = verdict
         passport.verdict_by = user.telegram_id
         passport.verdict_at = now

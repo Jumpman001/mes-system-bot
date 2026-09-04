@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Мои записи — MES{% endblock %}
+{% block icon %}i-edit{% endblock %}
+{% block heading %}Мои записи{% endblock %}
+{% block subtitle %}Заявка на исправление ошибки{% endblock %}
+
+{% block content %}
+<div id="loading" class="empty">
+    <p>Загружаю записи…</p>
+</div>
+
+<div id="list" hidden></div>
+
+<div id="empty" class="empty" hidden>
+    <svg class="icon" width="44" height="44" aria-hidden="true">
+        <use href="#i-inbox" />
+    </svg>
+    <h3>Записей пока нет</h3>
+    <p>Здесь появится всё, что вы внесёте в систему.</p>
+</div>
+
+<!-- Форма заявки, показывается по нажатию «Исправить» -->
+<div id="form" hidden>
+    <div class="card" style="margin-bottom:14px">
+        <div class="rows">
+            <div class="row"><span class="name">Запись</span><span class="val" id="f-title">—</span></div>
+            <div class="row"><span class="name">Поле</span><span class="val" id="f-field">—</span></div>
+            <div class="row"><span class="name">Сейчас</span><span class="val" id="f-old">—</span></div>
+        </div>
+    </div>
+
+    <div class="field">
+        <label for="new_value">Правильное значение</label>
+        <input type="text" id="new_value" inputmode="decimal" autocomplete="off" placeholder="Введите верное значение">
+    </div>
+
+    <div class="field">
+        <label for="reason">Причина исправления</label>
+        <textarea id="reason" rows="3" placeholder="Например: ошибся при вводе, указал вес мешка вместо расхода"></textarea>
+        <p class="hint">Причину увидит администратор. Без его согласия данные не изменятся.</p>
+    </div>
+
+    <button type="button" class="btn secondary" onclick="closeForm()">Отмена</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const loading = document.getElementById('loading');
+    const listBox = document.getElementById('list');
+    const emptyBox = document.getElementById('empty');
+    const formBox = document.getElementById('form');
+
+    let current = null;   // выбранная для правки запись
+    let pending = [];     // уже отправленные заявки
+
+    function isPending(target, id, field) {
+        return pending.some(p => p.target === target && p.record_id === id && p.field_name === field);
+    }
+
+    function render(entries) {
+        listBox.innerHTML = '';
+        for (const e of entries) {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.style.marginBottom = '10px';
+
+            let html = '<div style="font-size:14px;font-weight:650">' + e.title + '</div>' +
+                '<div class="hint" style="margin-bottom:10px">' + e.entered_at + '</div>' +
+                '<div class="rows">';
+
+            for (const [key, value] of Object.entries(e.fields)) {
+                const label = e.labels[key] || key;
+                const waiting = isPending(e.target, e.record_id, key);
+                html += '<div class="row"><span class="name">' + label + '</span>' +
+                    '<span style="display:flex;align-items:center;gap:8px">' +
+                    '<span class="val">' + value + '</span>';
+                if (waiting) {
+                    html += '<span class="badge warn">на проверке</span>';
+                } else {
+                    html += '<button type="button" class="btn secondary" ' +
+                        'style="width:auto;min-height:34px;padding:5px 12px;font-size:13px" ' +
+                        'data-t="' + e.target + '" data-i="' + e.record_id + '" ' +
+                        'data-f="' + key + '" data-l="' + label + '" data-v="' + value + '" ' +
+                        'data-title="' + e.title + '">Исправить</button>';
+                }
+                html += '</span></div>';
+            }
+            html += '</div>';
+            card.innerHTML = html;
+            listBox.appendChild(card);
+        }
+
+        listBox.querySelectorAll('button[data-f]').forEach(b => {
+            b.addEventListener('click', () => openForm(b.dataset));
+        });
+    }
+
+    function openForm(d) {
+        current = d;
+        document.getElementById('f-title').textContent = d.title;
+        document.getElementById('f-field').textContent = d.l;
+        document.getElementById('f-old').textContent = d.v;
+        document.getElementById('new_value').value = '';
+        document.getElementById('reason').value = '';
+        listBox.hidden = true;
+        formBox.hidden = false;
+        if (MES.tg) MES.tg.MainButton.setText('ОТПРАВИТЬ ЗАЯВКУ'), MES.tg.MainButton.show();
+    }
+
+    function closeForm() {
+        current = null;
+        formBox.hidden = true;
+        listBox.hidden = false;
+        if (MES.tg) MES.tg.MainButton.hide();
+    }
+
+    async function load() {
+        try {
+            const resp = await fetch('/api/my_entries', { headers: MES.authHeaders() });
+            if (!resp.ok) { MES.toast(await MES.errorText(resp)); loading.hidden = true; return; }
+            const data = await resp.json();
+            pending = data.pending || [];
+            loading.hidden = true;
+            if (!data.entries.length) { emptyBox.hidden = false; return; }
+            render(data.entries);
+            listBox.hidden = false;
+        } catch (_) {
+            loading.hidden = true;
+            MES.toast('Не удалось загрузить записи.');
+        }
+    }
+
+    MES.submitOn({
+        url: '/api/corrections',
+        label: 'ОТПРАВИТЬ ЗАЯВКУ',
+        onSuccess: 'Заявка отправлена',
+        collect: () => {
+            if (!current) throw new Error('Выберите поле для исправления.');
+            const value = document.getElementById('new_value').value.trim();
+            const reason = document.getElementById('reason').value.trim();
+            if (!value) throw new Error('Укажите правильное значение.');
+            if (reason.length < 5) throw new Error('Опишите причину исправления.');
+            return {
+                target: current.t,
+                record_id: parseInt(current.i),
+                field_name: current.f,
+                new_value: value,
+                reason: reason,
+            };
+        },
+    });
+
+    if (MES.tg) MES.tg.MainButton.hide();
+    load();
+</script>
+{% endblock %}

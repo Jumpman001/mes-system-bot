@@ -40,10 +40,13 @@ const MES = (() => {
     const el = document.createElement("div");
     el.className = "toast";
     el.setAttribute("role", "alert");
+    // Иконка circle-alert из набора Lucide (lucide.dev, лицензия ISC)
     el.innerHTML =
       '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
-      'stroke-width="2" stroke-linecap="round" style="flex:0 0 auto;margin-top:1px">' +
-      '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg><span></span>';
+      'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ' +
+      'style="flex:0 0 auto;margin-top:1px">' +
+      '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>' +
+      "</svg><span></span>";
     el.querySelector("span").textContent = text;
     document.body.appendChild(el);
     setTimeout(() => el.remove(), 5000);
@@ -57,6 +60,8 @@ const MES = (() => {
     try {
       const body = await resp.json();
       if (typeof body?.detail === "string") return body.detail;
+      if (body?.detail?.needs_confirmation)
+        return body.detail.warnings.join("; ");
       if (Array.isArray(body?.detail)) return "Проверьте правильность заполнения полей.";
     } catch (_) {
       /* тело не JSON — используем запасной текст ниже */
@@ -98,7 +103,65 @@ const MES = (() => {
 
     let busy = false;
 
-    tg.MainButton.onClick(async () => {
+    /**
+     * Отправляет данные. confirmed=true означает, что работник уже
+     * увидел предупреждения и согласился сохранить как есть.
+     */
+    async function send(payload, confirmed) {
+      busy = true;
+      tg.MainButton.showProgress();
+
+      const body = confirmed ? { ...payload, confirmed: true } : payload;
+
+      try {
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: authHeaders(),
+          body: JSON.stringify(body),
+        });
+
+        if (resp.ok) {
+          tg.MainButton.hideProgress();
+          tg.MainButton.hide();
+          success(onSuccess);
+          return;
+        }
+
+        tg.MainButton.hideProgress();
+        busy = false;
+
+        // 422 с needs_confirmation — это не ошибка, а вопрос: значение
+        // сильно расходится с нормой либо не хватает склада. Показываем,
+        // что именно смущает, и даём сохранить осознанно.
+        if (resp.status === 422 && !confirmed) {
+          const data = await resp.json().catch(() => null);
+          if (data?.detail?.needs_confirmation) {
+            haptic("warning");
+            const list = data.detail.warnings.map((w) => "• " + w).join("\n");
+            tg.showConfirm(
+              "Проверьте данные:\n\n" + list + "\n\nВсё верно, сохранить?",
+              (ok) => {
+                if (ok) send(payload, true);
+              }
+            );
+            return;
+          }
+          haptic("error");
+          toast("Проверьте правильность заполнения полей.");
+          return;
+        }
+
+        haptic("error");
+        toast(await errorText(resp));
+      } catch (_) {
+        tg.MainButton.hideProgress();
+        busy = false;
+        haptic("error");
+        toast("Нет связи с сервером. Проверьте интернет.");
+      }
+    }
+
+    tg.MainButton.onClick(() => {
       if (busy) return; // защита от двойного нажатия и двойной записи
       const el = form ? document.getElementById(form) : null;
       if (el && !el.reportValidity()) return;
@@ -113,34 +176,7 @@ const MES = (() => {
       }
       if (!payload) return;
 
-      busy = true;
-      tg.MainButton.showProgress();
-
-      try {
-        const resp = await fetch(url, {
-          method: "POST",
-          headers: authHeaders(),
-          body: JSON.stringify(payload),
-        });
-
-        if (!resp.ok) {
-          const message = await errorText(resp);
-          tg.MainButton.hideProgress();
-          busy = false;
-          haptic("error");
-          toast(message);
-          return;
-        }
-
-        tg.MainButton.hideProgress();
-        tg.MainButton.hide();
-        success(onSuccess);
-      } catch (_) {
-        tg.MainButton.hideProgress();
-        busy = false;
-        haptic("error");
-        toast("Нет связи с сервером. Проверьте интернет.");
-      }
+      send(payload, false);
     });
   }
 

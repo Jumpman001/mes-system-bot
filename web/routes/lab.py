@@ -6,7 +6,7 @@ POST /api/lab — сохранение LabTest в БД
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
@@ -16,6 +16,7 @@ from db.database import get_session
 from db.models import LabTest, LabTestType, Pipe, PipeStatus, User, UserRole
 from web.auth import require_roles
 from web.schemas import LabTestCreate
+from web.services.validation_service import DuplicateEntry, ensure_no_duplicate_lab
 
 router = APIRouter()
 
@@ -56,6 +57,12 @@ async def create_lab_test(
     user: User = Depends(require_roles(UserRole.LAB_TECHNICIAN)),
 ):
     """Сохраняет запись лабораторного теста в БД."""
+    # Защита: один и тот же тест по трубе не вносим дважды
+    try:
+        await ensure_no_duplicate_lab(session, data.pipe_id, data.test_type)
+    except DuplicateEntry as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
     test = LabTest(
         pipe_id=data.pipe_id,
         test_type=LabTestType(data.test_type),

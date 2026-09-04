@@ -28,6 +28,7 @@ from web.routes.qc import router as qc_web
 from web.routes.analytics import router as analytics_web
 from web.routes.inventory import router as inventory_web
 from web.routes.norms import router as norms_web
+from web.routes.corrections import router as corrections_web
 
 # ── Логирование ──────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -98,7 +99,7 @@ async def telegram_webhook(request: Request) -> Response:
 
 # Mini App роутеры
 for r in [receipt_web, dosing_web, technologist_web, lab_web,
-          qc_web, analytics_web, inventory_web, norms_web]:
+          qc_web, analytics_web, inventory_web, norms_web, corrections_web]:
     app.include_router(r)
 
 # Статика
