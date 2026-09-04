@@ -24,27 +24,56 @@ async def update_stock(
     Обновляет остаток материала на складе.
     quantity_delta > 0 — приход, < 0 — расход.
     Создаёт запись MaterialStock, если её ещё нет.
+
+    Конкурентность: строка блокируется через SELECT ... FOR UPDATE,
+    поэтому параллельные списания/приходы по одному материалу не теряются
+    (без блокировки два запроса прочитали бы один остаток и один из апдейтов
+    был бы потерян — классическая гонка read-modify-write).
+
+    Остаток не уходит ниже нуля: если расход превышает наличие,
+    остаток ограничивается нулём, а расхождение пишется в лог как WARNING
+    (физический расход уже произошёл — блокировать запись лога нельзя,
+    но и отрицательный остаток показывать бессмысленно).
     """
     result = await session.execute(
-        select(MaterialStock).where(MaterialStock.material_name == material_name)
+        select(MaterialStock)
+        .where(MaterialStock.material_name == material_name)
+        .with_for_update()
     )
     stock = result.scalar_one_or_none()
 
     if stock is None:
+        if quantity_delta < 0:
+            logger.warning(
+                "Склад: расход '%s' (%.2f %s), но материала ещё нет на складе — "
+                "остаток оставлен 0. Проверьте приход сырья.",
+                material_name, -quantity_delta, unit,
+            )
         stock = MaterialStock(
             material_name=material_name,
             unit=unit,
-            current_quantity=max(quantity_delta, 0),
+            current_quantity=max(quantity_delta, 0.0),
             min_quantity=0.0,
         )
         session.add(stock)
-        logger.info("Склад: создан материал '%s', остаток: %.2f %s", material_name, quantity_delta, unit)
-    else:
-        stock.current_quantity += quantity_delta
-        logger.info(
-            "Склад: '%s' %+.2f %s → остаток: %.2f %s",
-            material_name, quantity_delta, unit, stock.current_quantity, unit,
+        logger.info("Склад: создан материал '%s', остаток: %.2f %s",
+                    material_name, max(quantity_delta, 0.0), unit)
+        return
+
+    new_quantity = stock.current_quantity + quantity_delta
+    if new_quantity < 0:
+        logger.warning(
+            "Склад: '%s' расход %.2f %s превышает остаток %.2f %s — "
+            "остаток ограничен 0. Проверьте приход сырья.",
+            material_name, -quantity_delta, unit, stock.current_quantity, unit,
         )
+        new_quantity = 0.0
+
+    stock.current_quantity = new_quantity
+    logger.info(
+        "Склад: '%s' %+.2f %s → остаток: %.2f %s",
+        material_name, quantity_delta, unit, stock.current_quantity, unit,
+    )
 
 
 # ── Маппинг: поле ChemistryLog → название материала на складе ────────────────

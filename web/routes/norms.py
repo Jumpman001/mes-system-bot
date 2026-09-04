@@ -8,15 +8,16 @@ GET  /api/norms/{dn}/{pn}/{sn} — получить норматив
 import logging
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlalchemy import select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.database import async_session
-from db.models import PipeNorm
+from db.database import get_session
+from db.models import PipeNorm, User
+from web.auth import require_roles
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -55,13 +56,12 @@ class PipeNormCreate(BaseModel):
 
 
 @router.get("/norms", response_class=HTMLResponse)
-async def norms_page(request: Request):
+async def norms_page(request: Request, session: AsyncSession = Depends(get_session)):
     """Отдаёт HTML-страницу нормативов."""
-    async with async_session() as session:
-        result = await session.execute(
-            select(PipeNorm).order_by(PipeNorm.dn, PipeNorm.pn, PipeNorm.sn)
-        )
-        norms = result.scalars().all()
+    result = await session.execute(
+        select(PipeNorm).order_by(PipeNorm.dn, PipeNorm.pn, PipeNorm.sn)
+    )
+    norms = result.scalars().all()
 
     norms_list = []
     for n in norms:
@@ -93,57 +93,54 @@ async def norms_page(request: Request):
 
 
 @router.post("/api/norms")
-async def create_or_update_norm(data: PipeNormCreate):
+async def create_or_update_norm(
+    data: PipeNormCreate,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(require_roles()),  # только Администратор
+):
     """Создаёт или обновляет норматив для типа трубы."""
-    try:
-        async with async_session() as session:
-            # Проверяем, есть ли уже норматив для этого типа
-            result = await session.execute(
-                select(PipeNorm).where(
-                    PipeNorm.dn == data.dn,
-                    PipeNorm.pn == data.pn,
-                    PipeNorm.sn == data.sn,
-                    PipeNorm.with_sand == data.with_sand,
-                )
-            )
-            norm = result.scalar_one_or_none()
+    # Проверяем, есть ли уже норматив для этого типа
+    result = await session.execute(
+        select(PipeNorm).where(
+            PipeNorm.dn == data.dn,
+            PipeNorm.pn == data.pn,
+            PipeNorm.sn == data.sn,
+            PipeNorm.with_sand == data.with_sand,
+        )
+    )
+    norm = result.scalar_one_or_none()
 
-            if norm:
-                # Обновляем
-                for field, value in data.model_dump(exclude={"dn", "pn", "sn", "with_sand"}).items():
-                    if value is not None:
-                        setattr(norm, field, value)
-                logger.info("Норматив обновлён: DN%d PN%d SN%d", data.dn, data.pn, data.sn)
-            else:
-                # Создаём новый
-                norm = PipeNorm(**data.model_dump())
-                session.add(norm)
-                logger.info("Норматив создан: DN%d PN%d SN%d", data.dn, data.pn, data.sn)
-
-            await session.commit()
-    except SQLAlchemyError as e:
-        logger.error("Ошибка БД при сохранении норматива: %s", e)
-        raise HTTPException(status_code=500, detail="Ошибка базы данных.")
-    except Exception as e:
-        logger.exception("Непредвиденная ошибка при сохранении норматива: %s", e)
-        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера.")
+    if norm:
+        # Обновляем
+        for field, value in data.model_dump(exclude={"dn", "pn", "sn", "with_sand"}).items():
+            if value is not None:
+                setattr(norm, field, value)
+        logger.info("Норматив обновлён: DN%d PN%d SN%d", data.dn, data.pn, data.sn)
+    else:
+        # Создаём новый
+        norm = PipeNorm(**data.model_dump())
+        session.add(norm)
+        logger.info("Норматив создан: DN%d PN%d SN%d", data.dn, data.pn, data.sn)
 
     return {"status": "ok"}
 
 
 @router.get("/api/norms/{dn}/{pn}/{sn}")
-async def get_norm(dn: int, pn: int, sn: int, with_sand: bool = True):
+async def get_norm(
+    dn: int, pn: int, sn: int,
+    with_sand: bool = True,
+    session: AsyncSession = Depends(get_session),
+):
     """Получить норматив для конкретного типа трубы."""
-    async with async_session() as session:
-        result = await session.execute(
-            select(PipeNorm).where(
-                PipeNorm.dn == dn,
-                PipeNorm.pn == pn,
-                PipeNorm.sn == sn,
-                PipeNorm.with_sand == with_sand,
-            )
+    result = await session.execute(
+        select(PipeNorm).where(
+            PipeNorm.dn == dn,
+            PipeNorm.pn == pn,
+            PipeNorm.sn == sn,
+            PipeNorm.with_sand == with_sand,
         )
-        norm = result.scalar_one_or_none()
+    )
+    norm = result.scalar_one_or_none()
 
     if not norm:
         raise HTTPException(status_code=404, detail="Норматив не найден")

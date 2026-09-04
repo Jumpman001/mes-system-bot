@@ -16,10 +16,13 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.orm import (
     DeclarativeBase,
@@ -144,6 +147,10 @@ class Task(Base):
         comment="Наличие раструба/ниппеля (True) или прямая труба (False)"
     )
     quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=1, comment="Количество труб")
+    photo_file_id: Mapped[Optional[str]] = mapped_column(
+        String(200), nullable=True,
+        comment="Telegram file_id фото-схемы трубы (прикрепляет Админ)"
+    )
 
     created_by: Mapped[int] = mapped_column(
         BigInteger, nullable=False, comment="Telegram ID администратора"
@@ -209,6 +216,17 @@ class ProductionStage(Base):
     Начальник смены управляет запуском и остановкой.
     """
     __tablename__ = "production_stages"
+    __table_args__ = (
+        # Защита от двойного СТАРТА на уровне БД: у трубы не может быть
+        # двух незакрытых (end_time IS NULL) записей одной стадии,
+        # даже при гонке двух параллельных нажатий.
+        Index(
+            "uq_active_stage_per_pipe",
+            "pipe_id", "stage",
+            unique=True,
+            postgresql_where=text("end_time IS NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     pipe_id: Mapped[int] = mapped_column(
@@ -539,6 +557,11 @@ class PipeNorm(Base):
     ожидаемого расхода склада при создании задачи.
     """
     __tablename__ = "pipe_norms"
+    __table_args__ = (
+        # Один норматив на тип трубы: upsert в norms.py делает
+        # select-then-insert, без констрейнта гонка создала бы дубликаты.
+        UniqueConstraint("dn", "pn", "sn", "with_sand", name="uq_pipe_norm_type"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 

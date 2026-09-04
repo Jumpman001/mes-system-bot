@@ -24,75 +24,39 @@ from aiogram.types import (
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from bot.auth import ensure_callback_role, ensure_message_role
 from core.config import settings
 from core.utils import format_local_time
+from core.workflow import NEXT_STATUS, STATUS_STAGE, VISIBLE_STATUSES
 from db.database import async_session
-from db.models import Pipe, PipeStatus, ProductionStage, StageType
+from db.models import Pipe, PipeStatus, ProductionStage, UserRole
 
 router = Router(name="shift_leader")
 
 
-# ── Статусы, видимые начальнику смены ────────────────────────────────────────
-VISIBLE_STATUSES = [
-    PipeStatus.CREATED,
-    PipeStatus.LINER,
-    PipeStatus.LINER_DRYING,
-    PipeStatus.WINDER,
-    PipeStatus.WINDER_DRYING,
-    PipeStatus.TURNING,
-    PipeStatus.EXTRACTION,
-]
+# ── Презентация стадий (иконка + подпись) ────────────────────────────────────
+# Сами переходы (stage, next) берутся из core.workflow — единого источника
+# истины. Здесь только UI-слой: что показать начальнику смены.
+_STAGE_PRESENTATION: dict[PipeStatus, tuple[str, str]] = {
+    PipeStatus.CREATED: ("⚪️", "Лайнер"),
+    PipeStatus.LINER: ("🟢", "Лайнер"),
+    PipeStatus.LINER_DRYING: ("🟡", "Сушка Лайнера"),
+    PipeStatus.WINDER: ("🔵", "Виндер"),
+    PipeStatus.WINDER_DRYING: ("🟠", "Сушка Виндера"),
+    PipeStatus.TURNING: ("🟣", "Токарка"),
+    PipeStatus.EXTRACTION: ("🔴", "Трубосъем"),
+}
 
-# ── Маппинг стадий: статус → (StageType, следующий статус, название) ─────────
+# Итоговый конфиг: переходы из workflow + презентация. Структура та же,
+# что и раньше (stage/next/icon/label), поэтому остальной код не меняется.
 STAGE_CONFIG: dict[PipeStatus, dict] = {
-    # Лайнер
-    PipeStatus.CREATED: {
-        "stage": StageType.LINER,
-        "next": PipeStatus.LINER_DRYING,
-        "label": "Лайнер",
-        "icon": "⚪️",
-    },
-    PipeStatus.LINER: {
-        "stage": StageType.LINER,
-        "next": PipeStatus.LINER_DRYING,
-        "label": "Лайнер",
-        "icon": "🟢",
-    },
-    # Сушка Лайнера
-    PipeStatus.LINER_DRYING: {
-        "stage": StageType.LINER_DRYING,
-        "next": PipeStatus.WINDER,
-        "label": "Сушка Лайнера",
-        "icon": "🟡",
-    },
-    # Виндер
-    PipeStatus.WINDER: {
-        "stage": StageType.WINDER,
-        "next": PipeStatus.WINDER_DRYING,
-        "label": "Виндер",
-        "icon": "🔵",
-    },
-    # Сушка Виндера
-    PipeStatus.WINDER_DRYING: {
-        "stage": StageType.WINDER_DRYING,
-        "next": PipeStatus.WAITING_QC_APPROVAL,
-        "label": "Сушка Виндера",
-        "icon": "🟠",
-    },
-    # Токарка
-    PipeStatus.TURNING: {
-        "stage": StageType.TURNING,
-        "next": PipeStatus.EXTRACTION,
-        "label": "Токарка",
-        "icon": "🟣",
-    },
-    # Трубосъем
-    PipeStatus.EXTRACTION: {
-        "stage": StageType.EXTRACTION,
-        "next": PipeStatus.QC_FINAL,
-        "label": "Трубосъем",
-        "icon": "🔴",
-    },
+    status: {
+        "stage": STATUS_STAGE[status],
+        "next": NEXT_STATUS[status],
+        "icon": icon,
+        "label": label,
+    }
+    for status, (icon, label) in _STAGE_PRESENTATION.items()
 }
 
 # Статусы, при которых начальник смены нажимает СТАРТ (нет активной стадии)
@@ -116,6 +80,8 @@ RUNNING_STATUSES = {
 @router.message(Command("work"))
 async def cmd_work(message: Message) -> None:
     """Показать трубы, доступные для управления."""
+    if not await ensure_message_role(message, UserRole.SHIFT_LEADER):
+        return
     async with async_session() as session:
         result = await session.execute(
             select(Pipe)
@@ -230,6 +196,8 @@ def _build_pipe_control_keyboard(pipe: Pipe, has_active_stage: bool) -> InlineKe
 @router.callback_query(F.data.startswith("stage_start:"))
 async def start_stage(callback: CallbackQuery) -> None:
     """Универсальный обработчик запуска любой стадии."""
+    if not await ensure_callback_role(callback, UserRole.SHIFT_LEADER):
+        return
     pipe_id = int(callback.data.split(":")[1])
     now = datetime.now(timezone.utc)
 
@@ -277,6 +245,8 @@ async def start_stage(callback: CallbackQuery) -> None:
 @router.callback_query(F.data.startswith("stage_stop:"))
 async def stop_stage(callback: CallbackQuery) -> None:
     """Универсальный обработчик остановки любой стадии."""
+    if not await ensure_callback_role(callback, UserRole.SHIFT_LEADER):
+        return
     pipe_id = int(callback.data.split(":")[1])
     now = datetime.now(timezone.utc)
 
@@ -372,6 +342,8 @@ async def back_to_list(callback: CallbackQuery) -> None:
 @router.message(Command("receipt"))
 async def cmd_receipt(message: Message) -> None:
     """Открывает Mini App для ввода прихода сырья на склад."""
+    if not await ensure_message_role(message, UserRole.SHIFT_LEADER):
+        return
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
             text="📦 Открыть форму прихода",

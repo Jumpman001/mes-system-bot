@@ -5,13 +5,15 @@ build/
 dist/
 wheels/
 *.egg-info
+.pytest_cache/
 
 # Virtual environments
 .venv/
 venv/
 
-# Environment variables
+# Environment variables (включая .env.gcloud, .env.local и т.п. — там секреты!)
 .env
+.env.*
 
 # macOS
 .DS_Store

@@ -1,33 +1,23 @@
 """
 Единая точка входа: FastAPI + aiogram webhook + Mini App.
 Запуск: uvicorn app:app --host 0.0.0.0 --port 8080
+
+Bot и Dispatcher собираются в bot/factory.py — общем с polling-режимом
+(bot/main.py), чтобы сборки не расходились.
 """
 
+import hmac
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from aiogram import Bot, Dispatcher
-from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
-from aiogram.types import ErrorEvent, Update
+from aiogram.types import Update
 from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
 
+from bot.factory import create_bot, create_dispatcher, setup_bot_commands
 from core.config import settings
-from core.exceptions import MesBotError
-
-# ── Роутеры бота ─────────────────────────────────────────────────────────────
-from bot.handlers.base import router as base_router
-from bot.handlers.users_admin import router as users_admin_router
-from bot.handlers.admin import router as admin_router
-from bot.handlers.shift_leader import router as shift_leader_router
-from bot.handlers.dosing import router as dosing_router
-from bot.handlers.technologist import router as technologist_router
-from bot.handlers.lab import router as lab_router
-from bot.handlers.qc import router as qc_router
-from bot.handlers.report import router as report_router
-from bot.handlers.inventory import router as inventory_router
+from web.errors import register_exception_handlers
 
 # ── Роутеры Mini App ─────────────────────────────────────────────────────────
 from web.routes.receipt import router as receipt_web
@@ -46,39 +36,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ── Bot + Dispatcher ─────────────────────────────────────────────────────────
+# ── Bot + Dispatcher (из общей фабрики) ──────────────────────────────────────
 WEBHOOK_PATH = "/webhook"
 
-bot = Bot(
-    token=settings.BOT_TOKEN,
-    default=DefaultBotProperties(parse_mode=ParseMode.HTML),
-)
-dp = Dispatcher()
-
-# Подключаем роутеры бота
-for r in [base_router, users_admin_router, admin_router,
-          shift_leader_router, dosing_router, technologist_router,
-          lab_router, qc_router, report_router,
-          inventory_router]:
-    dp.include_router(r)
-
-
-# Глобальный обработчик ошибок
-@dp.errors()
-async def global_error_handler(event: ErrorEvent):
-    exception = event.exception
-    logger.exception("Unhandled exception for Update %s: %s",
-                     event.update.update_id, exception)
-    if isinstance(exception, MesBotError):
-        user_msg = f"⚠️ Ошибка: {exception}"
-    else:
-        user_msg = "⚠️ Произошла непредвиденная ошибка. Обратитесь к администратору."
-    if event.update.message:
-        await event.update.message.answer(user_msg)
-    elif event.update.callback_query:
-        if event.update.callback_query.message:
-            await event.update.callback_query.message.answer(user_msg)
-        await event.update.callback_query.answer()
+bot = create_bot()
+dp = create_dispatcher()
 
 
 # ── Lifespan: webhook setup / teardown ───────────────────────────────────────
@@ -94,11 +56,13 @@ async def lifespan(_app: FastAPI):
     except Exception as e:
         logger.warning("⚠️ Не удалось установить webhook (%s). "
                        "Обновите WEB_URL и передеплойте.", e)
-    yield
+    # Обновляем синюю кнопку меню (best-effort — не валим старт при сбое)
     try:
-        await bot.delete_webhook()
-    except Exception:
-        pass
+        await setup_bot_commands(bot)
+    except Exception as e:
+        logger.warning("⚠️ Не удалось установить меню команд: %s", e)
+    yield
+    # Вебхук при остановке контейнера Cloud Run не удаляем
     await bot.session.close()
     logger.info("🛑 Сессия закрыта.")
 
@@ -106,10 +70,27 @@ async def lifespan(_app: FastAPI):
 # ── FastAPI App ──────────────────────────────────────────────────────────────
 app = FastAPI(title="MES Bot + Mini App", version="1.0.0", lifespan=lifespan)
 
+# Единые обработчики ошибок БД / непредвиденных исключений
+register_exception_handlers(app)
+
+
+# Health-check (для мониторинга и readiness-проб)
+@app.get("/healthz")
+async def healthz() -> dict:
+    return {"status": "ok"}
+
 
 # Webhook endpoint
 @app.post(WEBHOOK_PATH)
 async def telegram_webhook(request: Request) -> Response:
+    # Проверяем секрет: Telegram присылает его в заголовке при каждом апдейте.
+    # Без этого любой, кто знает URL, мог бы слать боту поддельные апдейты.
+    if settings.WEBHOOK_SECRET:
+        secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+        if not secret or not hmac.compare_digest(secret, settings.WEBHOOK_SECRET):
+            logger.warning("Webhook: неверный или отсутствующий secret token.")
+            return Response(status_code=403)
+
     update = Update.model_validate(await request.json(), context={"bot": bot})
     await dp.feed_update(bot, update)
     return Response(status_code=200)

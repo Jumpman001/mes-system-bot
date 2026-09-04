@@ -4,6 +4,7 @@ aiohttp==3.13.3
 alembic==1.18.4
 asyncpg==0.31.0
 SQLAlchemy==2.0.46
+greenlet==3.5.3
 pydantic==2.12.5
 pydantic-settings==2.13.1
 python-dotenv==1.2.1

@@ -1,33 +1,25 @@
 """
-Хэндлер Дозировщика — команда /chemistry для открытия Mini App.
+Хэндлер Дозировщика — команда /chemistry открывает форму расхода химии.
 """
 
 from aiogram import Router
 from aiogram.filters import Command
-from aiogram.types import (
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    Message,
-    WebAppInfo,
-)
+from aiogram.types import Message
 
-from core.config import settings
+from bot.keyboards import open_webapp
+from db.models import UserRole
 
 router = Router(name="dosing")
 
 
 @router.message(Command("chemistry"))
 async def cmd_chemistry(message: Message) -> None:
-    """Отправляет кнопку Mini App для ввода расхода химии."""
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text="🧪 Открыть форму",
-            web_app=WebAppInfo(url=f"{settings.WEB_URL}/dosing"),
-        )]
-    ])
-    await message.answer(
-        "🧪 <b>Ввод фактического расхода химии</b>\n\n"
-        "Нажмите кнопку ниже, чтобы открыть форму ввода.",
-        parse_mode="HTML",
-        reply_markup=keyboard,
+    """Кнопка Mini App для ввода фактического расхода химии."""
+    await open_webapp(
+        message,
+        path="/dosing",
+        title="🧪 Расход химии",
+        description="Внесите фактический расход смолы, кобальта и акперокса.",
+        button="Открыть форму",
+        roles=(UserRole.DOSING_OPERATOR,),
     )

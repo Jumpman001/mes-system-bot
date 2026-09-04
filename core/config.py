@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     DB_PASSWORD: str = "mes_password"
     DB_NAME: str = "mes_db"
 
+    # Пул на ОДИН инстанс Cloud Run. db-f1-micro держит ~25 соединений,
+    # поэтому держим маленьким (5 инстансов × (3+2) = 25 максимум).
+    DB_POOL_SIZE: int = 3
+    DB_MAX_OVERFLOW: int = 2
+
     @property
     def DATABASE_URL(self) -> str:
         """Асинхронный DSN для asyncpg. Поддержка TCP и Unix-сокетов."""
@@ -39,10 +44,32 @@ class Settings(BaseSettings):
     # ── Telegram Bot ─────────────────────────────────────────────────────
     BOT_TOKEN: str = ""
 
+    # Срок годности подписи initData Mini App (сек). 24 часа по умолчанию.
+    WEBAPP_INIT_DATA_TTL: int = 86400
+
+    # Telegram ID «корневых» админов через запятую — для первичной загрузки
+    # (первый админ создаётся не из БД, а отсюда). Пример: "111,222".
+    ADMIN_IDS: str = ""
+
+    @property
+    def admin_ids(self) -> set[int]:
+        """Парсит ADMIN_IDS в множество int (пустые/мусорные значения пропускаются)."""
+        ids: set[int] = set()
+        for part in self.ADMIN_IDS.split(","):
+            part = part.strip()
+            if part.isdigit():
+                ids.add(int(part))
+        return ids
+
     # ── FastAPI (Mini App) ───────────────────────────────────────────────
     WEB_HOST: str = "0.0.0.0"
     WEB_PORT: int = 8000
-    WEB_URL: str = "https://wvjxi-62-89-208-188.a.free.pinggy.link"
+    # Публичный HTTPS-URL сервиса (Cloud Run). ОБЯЗАТЕЛЬНО задать в проде:
+    # на него ставится webhook и открываются кнопки Mini App.
+    WEB_URL: str = ""
+
+    # Локальная таймзона цеха — для отображения времени пользователям
+    TIMEZONE: str = "Asia/Dushanbe"
 
     # ── Webhook (Cloud Run) ──────────────────────────────────────────────
     WEBHOOK_SECRET: str = ""

@@ -16,8 +16,9 @@ from aiogram.types import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from bot.auth import ensure_message_role
 from db.database import async_session
-from db.models import Pipe, PipeStatus, Task
+from db.models import Pipe, PipeStatus, Task, UserRole
 
 router = Router(name="admin")
 
@@ -80,6 +81,8 @@ def _generate_temp_serial(task_id: int, index: int) -> str:
 @router.message(Command("new_task"))
 async def cmd_new_task(message: Message, state: FSMContext) -> None:
     """Запуск создания новой задачи."""
+    if not await ensure_message_role(message, UserRole.ADMIN):
+        return
     await state.clear()
     await state.set_state(NewTaskFSM.dn)
     await message.answer(
@@ -282,6 +285,7 @@ async def confirm_task(callback: CallbackQuery, state: FSMContext) -> None:
             sand_layers=data["sand_layers"],
             has_bell=data["has_bell"],
             quantity=data["quantity"],
+            photo_file_id=data.get("photo_file_id"),
             created_by=callback.from_user.id,
         )
         session.add(task)

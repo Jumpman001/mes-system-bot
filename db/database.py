@@ -12,11 +12,16 @@ from sqlalchemy.ext.asyncio import (
 from core.config import settings
 
 # ── Async Engine ─────────────────────────────────────────────────────────────
+# Пул скромный намеренно: Cloud Run может поднять несколько инстансов,
+# а Cloud SQL db-f1-micro держит всего ~25 соединений. 10+20 на инстанс
+# исчерпали бы лимит уже двумя инстансами. pool_pre_ping отсекает мёртвые
+# соединения после простоя (Cloud SQL их закрывает).
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_pre_ping=True,
 )
 
 # ── Фабрика сессий ──────────────────────────────────────────────────────────
@@ -30,10 +35,20 @@ async_session = async_sessionmaker(
 # ── Генератор сессий (для DI) ───────────────────────────────────────────────
 async def get_session() -> AsyncSession:
     """
-    Возвращает асинхронную сессию.
-    Использование:
-        async with get_session() as session:
-            ...
+    Зависимость FastAPI: выдаёт сессию, коммитит при успехе и откатывает
+    при любой ошибке. Роутам больше не нужно вручную писать
+    try/except + commit — достаточно объявить:
+
+        async def handler(session: AsyncSession = Depends(get_session)):
+            session.add(obj)
+            # commit произойдёт автоматически
+
+    HTTPException пробрасывается дальше (откат безвреден — коммитить нечего).
     """
     async with async_session() as session:
-        yield session
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
