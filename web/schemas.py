@@ -126,4 +126,7 @@ class PipeQCData(BaseModel):
     status: str
     dn: int | None = None
     serial_number: str
+    # Прямая труба (has_bell=False) пропускает токарку — интерфейс ОТК
+    # предупреждает об этом перед выдачей разрешения.
+    has_bell: bool = True
     passport: QCPassportData | None = None

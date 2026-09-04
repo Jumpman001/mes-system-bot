@@ -1,303 +1,254 @@
-<!DOCTYPE html>
-<html lang="ru">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Паспорт ОТК — MES</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <style>
-        body {
-            background: var(--tg-theme-bg-color, #0f172a);
-            color: var(--tg-theme-text-color, #e2e8f0);
-            font-family: 'Inter', -apple-system, sans-serif;
-        }
+{% block title %}Паспорт ОТК — MES{% endblock %}
+{% block icon %}i-shield{% endblock %}
+{% block heading %}Паспорт ОТК{% endblock %}
+{% block subtitle %}Контроль качества по стадиям{% endblock %}
 
-        .input-field {
-            background: var(--tg-theme-secondary-bg-color, #1e293b);
-            color: var(--tg-theme-text-color, #e2e8f0);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-
-        .input-field:focus {
-            border-color: #ef4444;
-            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
-            outline: none;
-        }
-
-        .input-readonly {
-            background: rgba(30, 41, 59, 0.5);
-            color: #94a3b8;
-            border: 1px dashed rgba(148, 163, 184, 0.2);
-        }
-
-        .label-text {
-            color: var(--tg-theme-hint-color, #94a3b8);
-        }
-
-        .section-title {
-            color: #ef4444;
-            border-bottom: 1px solid rgba(239, 68, 68, 0.3);
-        }
-
-        .success-overlay {
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(8px);
-        }
-
-        @keyframes checkmark {
-            0% {
-                transform: scale(0);
-                opacity: 0
-            }
-
-            50% {
-                transform: scale(1.2)
-            }
-
-            100% {
-                transform: scale(1);
-                opacity: 1
-            }
-        }
-
-        .animate-check {
-            animation: checkmark 0.4s ease-out forwards;
-        }
-
-        .block-section {
-            display: none;
-        }
-
-        .checkbox-custom {
-            accent-color: #ef4444;
-            width: 20px;
-            height: 20px;
-        }
-
-        .pipe-info {
-            background: var(--tg-theme-secondary-bg-color, #1e293b);
-            border: 1px solid rgba(239, 68, 68, 0.2);
-        }
-    </style>
-</head>
-
-<body class="min-h-screen p-4">
-    <div class="text-center mb-6">
-        <div class="text-3xl mb-2">📋</div>
-        <h1 class="text-xl font-bold">Паспорт ОТК</h1>
-        <p class="text-sm label-text mt-1">Контроль качества труб</p>
+{% block content %}
+{% if pipes %}
+<form id="qcForm" class="fade">
+    <div class="field">
+        <label for="pipe_id">Труба</label>
+        <select id="pipe_id" required>
+            <option value="" disabled selected>Выберите трубу</option>
+            {% for pipe in pipes %}
+            <option value="{{ pipe.id }}">{{ pipe.serial_number }}</option>
+            {% endfor %}
+        </select>
     </div>
-    <form id="qcForm" class="space-y-4 max-w-md mx-auto">
-        <div>
-            <label class="block text-sm font-medium label-text mb-1.5">Труба</label>
-            <select id="pipe_id" required class="input-field w-full rounded-xl px-4 py-3 text-base appearance-none">
-                <option value="" disabled selected>Выберите трубу</option>
-                {% for pipe in pipes %}
-                <option value="{{ pipe.id }}">{{ pipe.serial_number }} ({{ pipe.status.value }})</option>
-                {% endfor %}
+
+    <div class="card" id="pipeInfo" hidden style="margin-bottom:14px">
+        <div class="rows">
+            <div class="row"><span class="name">Стадия</span><span class="val" id="infoStatus">—</span></div>
+            <div class="row"><span class="name">Внутренний DN</span><span class="val" id="infoDN">—</span></div>
+            <div class="row" id="infoBellRow"><span class="name">Раструб</span><span class="val"
+                    id="infoBell">—</span></div>
+        </div>
+    </div>
+
+    <div class="block" id="block-sand" hidden>
+        <h3>Толщина песчаных слоёв</h3>
+        <div class="field">
+            <label for="sand_layer_1_mm">Слой 1, мм</label>
+            <input type="number" id="sand_layer_1_mm" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+        </div>
+        <div class="field" style="margin-bottom:0">
+            <label for="sand_layer_2_mm">Слой 2, мм</label>
+            <input type="number" id="sand_layer_2_mm" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+        </div>
+    </div>
+
+    <div class="block" id="block-approval" hidden>
+        <h3>Разрешение после сушки</h3>
+        <label class="switch" for="turning_approved">
+            <span id="approvalLabel">Разрешить токарную обработку</span>
+            <input type="checkbox" id="turning_approved">
+        </label>
+        <p class="hint" id="approvalHint" style="margin-top:8px"></p>
+    </div>
+
+    <div class="block" id="block-geometry" hidden>
+        <h3>Геометрия после токарки</h3>
+        <div class="field">
+            <label for="outer_dn_mm">Наружный DN, мм</label>
+            <input type="number" id="outer_dn_mm" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+        </div>
+        <div class="field">
+            <label for="inner_dn_mm">Внутренний DN, мм — из задания</label>
+            <input type="number" id="inner_dn_mm" readonly tabindex="-1"
+                style="background:var(--surface-2);color:var(--muted)">
+        </div>
+        <div class="field">
+            <label for="wall_thickness_mm">Толщина стенки, мм — расчёт</label>
+            <input type="number" id="wall_thickness_mm" readonly tabindex="-1"
+                style="background:var(--surface-2);color:var(--muted)">
+            <p class="hint">(Наружный DN − внутренний DN) ÷ 2</p>
+        </div>
+        <div class="field">
+            <label for="pipe_circumference_mm">Длина окружности трубы, мм</label>
+            <input type="number" id="pipe_circumference_mm" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+        </div>
+        <div class="field">
+            <label for="bell_circumference_mm">Длина окружности раструба, мм</label>
+            <input type="number" id="bell_circumference_mm" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+        </div>
+        <div class="field">
+            <label for="bell_wall_thickness_mm">Толщина стенки раструба, мм</label>
+            <input type="number" id="bell_wall_thickness_mm" step="0.01" min="0" inputmode="decimal"
+                placeholder="0.00">
+        </div>
+        <div class="field">
+            <label for="nipple_outer_diameter_mm">Наружный диаметр ниппеля, мм</label>
+            <input type="number" id="nipple_outer_diameter_mm" step="0.01" min="0" inputmode="decimal"
+                placeholder="0.00">
+        </div>
+        <div class="field">
+            <label for="channel_diameter_1_mm">Диаметр канала 1, мм</label>
+            <input type="number" id="channel_diameter_1_mm" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+        </div>
+        <div class="field">
+            <label for="channel_diameter_2_mm">Диаметр канала 2, мм</label>
+            <input type="number" id="channel_diameter_2_mm" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+        </div>
+        <div class="field">
+            <label for="channel_depth_mm">Глубина каналов, мм</label>
+            <input type="number" id="channel_depth_mm" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+        </div>
+        <div class="field">
+            <label for="channel_width_mm">Ширина каналов, мм</label>
+            <input type="number" id="channel_width_mm" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+        </div>
+        <div class="field" style="margin-bottom:0">
+            <label for="machined_length_mm">Длина обработанной части, мм</label>
+            <input type="number" id="machined_length_mm" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+        </div>
+    </div>
+
+    <div class="block" id="block-final" hidden>
+        <h3>Финальный контроль</h3>
+        <div class="field">
+            <label for="visual_inspection_notes">Замечания визуального контроля</label>
+            <textarea id="visual_inspection_notes" rows="3" placeholder="Дефекты или «без замечаний»"></textarea>
+        </div>
+        <div class="field" style="margin-bottom:0">
+            <label for="final_verdict">Вердикт</label>
+            <select id="final_verdict">
+                <option value="" disabled selected>Выберите вердикт</option>
+                <option value="passed">Годен к выпуску</option>
+                <option value="rejected">Брак</option>
             </select>
-        </div>
-        <div id="pipeInfo" class="pipe-info rounded-xl p-3 text-sm hidden">
-            <span class="label-text">Статус:</span> <b id="infoStatus">—</b> &nbsp;|&nbsp;
-            <span class="label-text">DN:</span> <b id="infoDN">—</b>
-        </div>
-        <!-- Блок 1: Песок -->
-        <div id="block-sand" class="block-section space-y-3">
-            <p class="section-title text-sm font-semibold pb-1 mb-2">🪨 Толщина песчаных слоёв</p>
-            <div><label class="block text-sm font-medium label-text mb-1">Толщина слоя 1 (мм)</label>
-                <input type="number" id="sand_layer_1_mm" step="0.01" min="0" placeholder="0.00"
-                    class="input-field w-full rounded-xl px-4 py-3 text-base">
-            </div>
-            <div><label class="block text-sm font-medium label-text mb-1">Толщина слоя 2 (мм)</label>
-                <input type="number" id="sand_layer_2_mm" step="0.01" min="0" placeholder="0.00"
-                    class="input-field w-full rounded-xl px-4 py-3 text-base">
-            </div>
-        </div>
-        <!-- Блок 2: Разрешение -->
-        <div id="block-approval" class="block-section space-y-3">
-            <p class="section-title text-sm font-semibold pb-1 mb-2">✅ Разрешение на токарку</p>
-            <div class="flex items-center gap-3 py-2">
-                <input type="checkbox" id="turning_approved" class="checkbox-custom">
-                <label for="turning_approved" class="text-sm font-medium">Разрешить токарную обработку</label>
-            </div>
-        </div>
-        <!-- Блок 3: Геометрия -->
-        <div id="block-geometry" class="block-section space-y-3">
-            <p class="section-title text-sm font-semibold pb-1 mb-2">📐 Геометрия</p>
-            <div><label class="block text-sm font-medium label-text mb-1">Длина окр. трубы (мм)</label>
-                <input type="number" id="pipe_circumference_mm" step="0.01" min="0" placeholder="0.00"
-                    class="input-field w-full rounded-xl px-4 py-3 text-base">
-            </div>
-            <div><label class="block text-sm font-medium label-text mb-1">Длина окр. раструба (мм)</label>
-                <input type="number" id="bell_circumference_mm" step="0.01" min="0" placeholder="0.00"
-                    class="input-field w-full rounded-xl px-4 py-3 text-base">
-            </div>
-            <div><label class="block text-sm font-medium label-text mb-1">Наружный DN трубы (мм)</label>
-                <input type="number" id="outer_dn_mm" step="0.01" min="0" placeholder="0.00"
-                    class="input-field w-full rounded-xl px-4 py-3 text-base">
-            </div>
-            <div><label class="block text-sm font-medium label-text mb-1">Внутренний DN (мм) — из задания</label>
-                <input type="number" id="inner_dn_mm" readonly
-                    class="input-readonly w-full rounded-xl px-4 py-3 text-base cursor-not-allowed">
-            </div>
-            <div><label class="block text-sm font-medium label-text mb-1">Толщина стенки (мм) — авторасчёт</label>
-                <input type="number" id="wall_thickness_mm" readonly
-                    class="input-readonly w-full rounded-xl px-4 py-3 text-base cursor-not-allowed">
-            </div>
-            <div><label class="block text-sm font-medium label-text mb-1">Толщина стенки раструба (мм)</label>
-                <input type="number" id="bell_wall_thickness_mm" step="0.01" min="0" placeholder="0.00"
-                    class="input-field w-full rounded-xl px-4 py-3 text-base">
-            </div>
-            <div><label class="block text-sm font-medium label-text mb-1">Наружный ∅ ниппеля (мм)</label>
-                <input type="number" id="nipple_outer_diameter_mm" step="0.01" min="0" placeholder="0.00"
-                    class="input-field w-full rounded-xl px-4 py-3 text-base">
-            </div>
-            <div><label class="block text-sm font-medium label-text mb-1">∅ канала 1 (мм)</label>
-                <input type="number" id="channel_diameter_1_mm" step="0.01" min="0" placeholder="0.00"
-                    class="input-field w-full rounded-xl px-4 py-3 text-base">
-            </div>
-            <div><label class="block text-sm font-medium label-text mb-1">∅ канала 2 (мм)</label>
-                <input type="number" id="channel_diameter_2_mm" step="0.01" min="0" placeholder="0.00"
-                    class="input-field w-full rounded-xl px-4 py-3 text-base">
-            </div>
-            <div><label class="block text-sm font-medium label-text mb-1">Глубина каналов (мм)</label>
-                <input type="number" id="channel_depth_mm" step="0.01" min="0" placeholder="0.00"
-                    class="input-field w-full rounded-xl px-4 py-3 text-base">
-            </div>
-            <div><label class="block text-sm font-medium label-text mb-1">Ширина каналов (мм)</label>
-                <input type="number" id="channel_width_mm" step="0.01" min="0" placeholder="0.00"
-                    class="input-field w-full rounded-xl px-4 py-3 text-base">
-            </div>
-            <div><label class="block text-sm font-medium label-text mb-1">Длина обработанной части (мм)</label>
-                <input type="number" id="machined_length_mm" step="0.01" min="0" placeholder="0.00"
-                    class="input-field w-full rounded-xl px-4 py-3 text-base">
-            </div>
-        </div>
-        <!-- Блок 4: Финал -->
-        <div id="block-final" class="block-section space-y-3">
-            <p class="section-title text-sm font-semibold pb-1 mb-2">🏆 Финальный контроль</p>
-            <div><label class="block text-sm font-medium label-text mb-1">Замечания</label>
-                <textarea id="visual_inspection_notes" rows="3" placeholder="Описание дефектов или «Без замечаний»..."
-                    class="input-field w-full rounded-xl px-4 py-3 text-base resize-none"></textarea>
-            </div>
-            <div><label class="block text-sm font-medium label-text mb-1.5">Вердикт</label>
-                <select id="final_verdict" class="input-field w-full rounded-xl px-4 py-3 text-base appearance-none">
-                    <option value="" disabled selected>Выберите вердикт</option>
-                    <option value="passed">✅ Годен</option>
-                    <option value="rejected">❌ Брак</option>
-                </select>
-            </div>
-        </div>
-    </form>
-    <div id="successOverlay" class="success-overlay fixed inset-0 flex items-center justify-center z-50 hidden">
-        <div class="text-center">
-            <div class="text-6xl animate-check">✅</div>
-            <p class="text-xl font-bold mt-4">Сохранено!</p>
+            <p class="hint">Вердикт закрывает трубу — изменить его потом нельзя.</p>
         </div>
     </div>
-    <script>
-        const tg = window.Telegram.WebApp;
-        tg.ready(); tg.expand();
-        const pipeSelect = document.getElementById('pipe_id');
-        const form = document.getElementById('qcForm');
-        const overlay = document.getElementById('successOverlay');
-        const blockSand = document.getElementById('block-sand');
-        const blockApproval = document.getElementById('block-approval');
-        const blockGeometry = document.getElementById('block-geometry');
-        const blockFinal = document.getElementById('block-final');
-        const pipeInfo = document.getElementById('pipeInfo');
-        let currentDN = null;
-        let pipeLoaded = false;
-        const SAND_STATUSES = ['winder', 'winder_drying'];
-        const APPROVAL_STATUSES = ['waiting_qc_approval'];
-        const GEOMETRY_STATUSES = ['turning', 'extraction', 'qc_final'];
-        const FINAL_STATUSES = ['qc_final'];
 
-        pipeSelect.addEventListener('change', async () => {
-            const pipeId = pipeSelect.value;
-            if (!pipeId) return;
-            try {
-                const resp = await fetch('/api/qc/pipe/' + pipeId);
-                const data = await resp.json();
-                if (data.error) { tg.showAlert(data.error); return; }
-                const status = data.status;
-                currentDN = data.dn;
-                document.getElementById('infoStatus').textContent = status;
-                document.getElementById('infoDN').textContent = currentDN || '—';
-                pipeInfo.classList.remove('hidden');
-                blockSand.style.display = 'none';
-                blockApproval.style.display = 'none';
-                blockGeometry.style.display = 'none';
-                blockFinal.style.display = 'none';
-                if (SAND_STATUSES.includes(status)) blockSand.style.display = 'block';
-                if (APPROVAL_STATUSES.includes(status)) blockApproval.style.display = 'block';
-                if (GEOMETRY_STATUSES.includes(status)) blockGeometry.style.display = 'block';
-                if (FINAL_STATUSES.includes(status)) blockFinal.style.display = 'block';
-                if (data.passport) {
-                    const p = data.passport;
-                    setVal('sand_layer_1_mm', p.sand_layer_1_mm);
-                    setVal('sand_layer_2_mm', p.sand_layer_2_mm);
-                    if (p.turning_approved) document.getElementById('turning_approved').checked = true;
-                    setVal('pipe_circumference_mm', p.pipe_circumference_mm);
-                    setVal('bell_circumference_mm', p.bell_circumference_mm);
-                    setVal('bell_wall_thickness_mm', p.bell_wall_thickness_mm);
-                    setVal('nipple_outer_diameter_mm', p.nipple_outer_diameter_mm);
-                    setVal('channel_diameter_1_mm', p.channel_diameter_1_mm);
-                    setVal('channel_diameter_2_mm', p.channel_diameter_2_mm);
-                    setVal('channel_depth_mm', p.channel_depth_mm);
-                    setVal('channel_width_mm', p.channel_width_mm);
-                    setVal('machined_length_mm', p.machined_length_mm);
-                    setVal('wall_thickness_mm', p.wall_thickness_mm);
-                    if (p.visual_inspection_notes) document.getElementById('visual_inspection_notes').value = p.visual_inspection_notes;
-                    if (p.final_verdict) document.getElementById('final_verdict').value = p.final_verdict;
-                }
-                document.getElementById('inner_dn_mm').value = currentDN || '';
-                recalcWall();
-                pipeLoaded = true;
-                tg.MainButton.setText("СОХРАНИТЬ");
-                tg.MainButton.show();
-            } catch (err) { tg.showAlert('Ошибка загрузки: ' + err.message); }
-        });
+    <p class="hint" id="pickHint">Выберите трубу — появятся поля для её текущей стадии.</p>
+</form>
+{% else %}
+<div class="empty">
+    <svg class="icon" width="44" height="44" aria-hidden="true">
+        <use href="#i-inbox" />
+    </svg>
+    <h3>Нет труб на контроле</h3>
+    <p>Трубы появятся, когда начальник смены запустит производство.</p>
+</div>
+{% endif %}
+{% endblock %}
 
-        document.getElementById('outer_dn_mm').addEventListener('input', recalcWall);
-        function recalcWall() {
-            const outer = parseFloat(document.getElementById('outer_dn_mm').value);
-            const inner = currentDN;
-            document.getElementById('wall_thickness_mm').value = (outer && inner) ? ((outer - inner) / 2).toFixed(2) : '';
+{% block scripts %}
+<script>
+    const STATUS_LABEL = {
+        created: 'Создана', liner: 'Лайнер', liner_drying: 'Сушка лайнера',
+        winder: 'Виндер', winder_drying: 'Сушка виндера',
+        waiting_qc_approval: 'Ожидает разрешения ОТК', turning: 'Токарка',
+        extraction: 'Трубосъём', qc_final: 'Финальный контроль',
+        accepted: 'Годен', rejected: 'Брак',
+    };
+
+    const SAND_STATUSES = ['winder', 'winder_drying'];
+    const APPROVAL_STATUSES = ['waiting_qc_approval'];
+    const GEOMETRY_STATUSES = ['turning', 'extraction', 'qc_final'];
+    const FINAL_STATUSES = ['qc_final'];
+
+    const pipeSelect = document.getElementById('pipe_id');
+    const pipeInfo = document.getElementById('pipeInfo');
+    const blocks = {
+        sand: document.getElementById('block-sand'),
+        approval: document.getElementById('block-approval'),
+        geometry: document.getElementById('block-geometry'),
+        final: document.getElementById('block-final'),
+    };
+
+    let innerDN = null;
+    let hasBell = true;
+
+    function setVal(id, v) {
+        if (v !== null && v !== undefined) document.getElementById(id).value = v;
+    }
+
+    function recalcWall() {
+        const outer = parseFloat(document.getElementById('outer_dn_mm').value);
+        document.getElementById('wall_thickness_mm').value =
+            (outer && innerDN) ? ((outer - innerDN) / 2).toFixed(2) : '';
+    }
+    document.getElementById('outer_dn_mm').addEventListener('input', recalcWall);
+
+    pipeSelect.addEventListener('change', async () => {
+        if (!pipeSelect.value) return;
+        try {
+            const resp = await fetch('/api/qc/pipe/' + pipeSelect.value, { headers: MES.authHeaders() });
+            if (!resp.ok) { MES.toast(await MES.errorText(resp)); return; }
+            const data = await resp.json();
+            if (data.error) { MES.toast(data.error); return; }
+
+            innerDN = data.dn;
+            hasBell = data.has_bell !== false;
+
+            document.getElementById('infoStatus').textContent = STATUS_LABEL[data.status] || data.status;
+            document.getElementById('infoDN').textContent = innerDN ? innerDN + ' мм' : '—';
+            document.getElementById('infoBell').textContent = hasBell ? 'есть' : 'прямая труба';
+            pipeInfo.hidden = false;
+            document.getElementById('pickHint').hidden = true;
+
+            for (const b of Object.values(blocks)) b.hidden = true;
+            if (SAND_STATUSES.includes(data.status)) blocks.sand.hidden = false;
+            if (APPROVAL_STATUSES.includes(data.status)) {
+                blocks.approval.hidden = false;
+                // Прямая труба токарку пропускает — предупреждаем ОТК заранее
+                document.getElementById('approvalHint').textContent = hasBell
+                    ? 'После разрешения труба перейдёт на токарку.'
+                    : 'Труба прямая: токарка пропускается, труба перейдёт сразу на трубосъём.';
+            }
+            if (GEOMETRY_STATUSES.includes(data.status)) blocks.geometry.hidden = false;
+            if (FINAL_STATUSES.includes(data.status)) blocks.final.hidden = false;
+
+            const p = data.passport;
+            if (p) {
+                for (const k of ['sand_layer_1_mm', 'sand_layer_2_mm', 'pipe_circumference_mm',
+                    'bell_circumference_mm', 'bell_wall_thickness_mm', 'nipple_outer_diameter_mm',
+                    'channel_diameter_1_mm', 'channel_diameter_2_mm', 'channel_depth_mm',
+                    'channel_width_mm', 'machined_length_mm', 'wall_thickness_mm']) setVal(k, p[k]);
+                if (p.turning_approved) document.getElementById('turning_approved').checked = true;
+                if (p.visual_inspection_notes)
+                    document.getElementById('visual_inspection_notes').value = p.visual_inspection_notes;
+                if (p.final_verdict) document.getElementById('final_verdict').value = p.final_verdict;
+            }
+
+            document.getElementById('inner_dn_mm').value = innerDN || '';
+            recalcWall();
+        } catch (_) {
+            MES.toast('Не удалось загрузить данные трубы.');
         }
-        function setVal(id, value) { if (value !== null && value !== undefined) document.getElementById(id).value = value; }
-        function getVal(id) { const el = document.getElementById(id); return el && el.value !== '' ? parseFloat(el.value) : null; }
+    });
 
-        tg.MainButton.onClick(async function () {
-            tg.MainButton.showProgress();
-            if (!form.reportValidity()) { tg.MainButton.hideProgress(); return; }
-            const telegramId = tg.initDataUnsafe?.user?.id;
-            if (!telegramId) { tg.MainButton.hideProgress(); tg.HapticFeedback.notificationOccurred('error'); tg.showAlert('Ошибка: не удалось получить Telegram ID.'); return; }
+    MES.submitOn({
+        form: 'qcForm',
+        url: '/api/qc',
+        label: 'СОХРАНИТЬ ПАСПОРТ',
+        onSuccess: 'Паспорт обновлён',
+        collect: () => {
+            if (!pipeSelect.value) throw new Error('Выберите трубу.');
             const data = { pipe_id: parseInt(pipeSelect.value) };
-            if (blockSand.style.display !== 'none') { data.sand_layer_1_mm = getVal('sand_layer_1_mm'); data.sand_layer_2_mm = getVal('sand_layer_2_mm'); }
-            if (blockApproval.style.display !== 'none') { data.turning_approved = document.getElementById('turning_approved').checked; }
-            if (blockGeometry.style.display !== 'none') {
-                data.pipe_circumference_mm = getVal('pipe_circumference_mm'); data.bell_circumference_mm = getVal('bell_circumference_mm');
-                data.outer_dn_mm = getVal('outer_dn_mm'); data.wall_thickness_mm = getVal('wall_thickness_mm');
-                data.bell_wall_thickness_mm = getVal('bell_wall_thickness_mm'); data.nipple_outer_diameter_mm = getVal('nipple_outer_diameter_mm');
-                data.channel_diameter_1_mm = getVal('channel_diameter_1_mm'); data.channel_diameter_2_mm = getVal('channel_diameter_2_mm');
-                data.channel_depth_mm = getVal('channel_depth_mm'); data.channel_width_mm = getVal('channel_width_mm');
-                data.machined_length_mm = getVal('machined_length_mm');
-            }
-            if (blockFinal.style.display !== 'none') { data.visual_inspection_notes = document.getElementById('visual_inspection_notes').value || null; data.final_verdict = document.getElementById('final_verdict').value || null; }
-            try {
-                const resp = await fetch('/api/qc', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'tma ' + tg.initData }, body: JSON.stringify(data) });
-                if (!resp.ok) throw new Error(`Ошибка: ${resp.status}`);
-                tg.MainButton.hideProgress(); tg.HapticFeedback.notificationOccurred('success');
-                overlay.classList.remove('hidden'); setTimeout(() => tg.close(), 1200);
-            } catch (err) {
-                tg.MainButton.hideProgress(); tg.HapticFeedback.notificationOccurred('error'); tg.showAlert('Ошибка при сохранении данных!');
-            }
-        });
-    </script>
-</body>
 
-</html>
+            if (!blocks.sand.hidden) {
+                data.sand_layer_1_mm = MES.num('sand_layer_1_mm');
+                data.sand_layer_2_mm = MES.num('sand_layer_2_mm');
+            }
+            if (!blocks.approval.hidden) {
+                data.turning_approved = document.getElementById('turning_approved').checked;
+            }
+            if (!blocks.geometry.hidden) {
+                for (const k of ['pipe_circumference_mm', 'bell_circumference_mm', 'outer_dn_mm',
+                    'wall_thickness_mm', 'bell_wall_thickness_mm', 'nipple_outer_diameter_mm',
+                    'channel_diameter_1_mm', 'channel_diameter_2_mm', 'channel_depth_mm',
+                    'channel_width_mm', 'machined_length_mm']) data[k] = MES.num(k);
+            }
+            if (!blocks.final.hidden) {
+                data.visual_inspection_notes = MES.str('visual_inspection_notes');
+                data.final_verdict = document.getElementById('final_verdict').value || null;
+            }
+            return data;
+        },
+    });
+</script>
+{% endblock %}

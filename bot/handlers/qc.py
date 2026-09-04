@@ -1,50 +1,40 @@
 """
-Хэндлер Инженера ОТК — команда /qc_passport для открытия Mini App.
+Хэндлеры Инженера ОТК — паспорт качества и присвоение серийных номеров.
 """
 
 from aiogram import Router
 from aiogram.filters import Command
-from aiogram.types import (
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    Message,
-    WebAppInfo,
-)
+from aiogram.types import Message
 
-from core.config import settings
+from bot.keyboards import open_webapp
+from db.models import UserRole
 
 router = Router(name="qc")
+
+QC_ROLES = (UserRole.QC_ENGINEER,)
 
 
 @router.message(Command("qc_passport"))
 async def cmd_qc_passport(message: Message) -> None:
-    """Отправляет кнопку Mini App для заполнения паспорта ОТК."""
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text="📋 Открыть форму",
-            web_app=WebAppInfo(url=f"{settings.WEB_URL}/qc"),
-        )]
-    ])
-    await message.answer(
-        "📋 <b>Заполнение паспорта ОТК</b>\n\n"
-        "Нажмите кнопку ниже, чтобы открыть форму контроля качества.",
-        parse_mode="HTML",
-        reply_markup=keyboard,
+    """Кнопка Mini App для заполнения паспорта ОТК."""
+    await open_webapp(
+        message,
+        path="/qc",
+        title="🛂 Паспорт ОТК",
+        description="Замеры песка, разрешение на токарку, геометрия и финальный вердикт.",
+        button="Открыть паспорт",
+        roles=QC_ROLES,
     )
 
 
 @router.message(Command("naming"))
 async def cmd_naming(message: Message) -> None:
-    """Отправляет кнопку Mini App для присвоения серийных номеров."""
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text="🏷 Открыть форму",
-            web_app=WebAppInfo(url=f"{settings.WEB_URL}/qc_naming"),
-        )]
-    ])
-    await message.answer(
-        "🏷 <b>Присвоение серийных номеров</b>\n\n"
-        "Нажмите кнопку ниже, чтобы присвоить номера трубам.",
-        parse_mode="HTML",
-        reply_markup=keyboard,
+    """Кнопка Mini App для присвоения серийных номеров."""
+    await open_webapp(
+        message,
+        path="/qc_naming",
+        title="🏷 Серийные номера",
+        description="Присвойте постоянные номера трубам из новой задачи.",
+        button="Открыть форму",
+        roles=QC_ROLES,
     )

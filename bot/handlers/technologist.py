@@ -1,33 +1,25 @@
 """
-Хэндлер Технолога — команда /dry_materials для открытия Mini App.
+Хэндлер Технолога — команда /dry_materials открывает форму сухих материалов.
 """
 
 from aiogram import Router
 from aiogram.filters import Command
-from aiogram.types import (
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    Message,
-    WebAppInfo,
-)
+from aiogram.types import Message
 
-from core.config import settings
+from bot.keyboards import open_webapp
+from db.models import UserRole
 
 router = Router(name="technologist")
 
 
 @router.message(Command("dry_materials"))
 async def cmd_dry_materials(message: Message) -> None:
-    """Отправляет кнопку Mini App для ввода сухих материалов."""
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text="🧵 Открыть форму",
-            web_app=WebAppInfo(url=f"{settings.WEB_URL}/dry_materials"),
-        )]
-    ])
-    await message.answer(
-        "🧵 <b>Ввод фактического расхода сухих материалов</b>\n\n"
-        "Нажмите кнопку ниже, чтобы открыть форму ввода.",
-        parse_mode="HTML",
-        reply_markup=keyboard,
+    """Кнопка Mini App для ввода расхода сухих материалов."""
+    await open_webapp(
+        message,
+        path="/dry_materials",
+        title="🧵 Сухие материалы",
+        description="Внесите фактический расход стекловолокна, песка, марли и лент.",
+        button="Открыть форму",
+        roles=(UserRole.TECHNOLOGIST,),
     )

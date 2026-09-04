@@ -1,0 +1,412 @@
+/* ==========================================================================
+   КОМПОЗИТ-MES — дизайн-система Mini App
+   Единый источник стилей для всех экранов. Раньше CSS копировался
+   в каждый шаблон и успел разъехаться между ними.
+
+   Принципы:
+   - Цвета берём из темы Telegram (light/dark), с честными запасными
+     значениями на обе схемы — раньше запасной вариант был только тёмный.
+   - Крупные зоны нажатия (min 48px): работают в цеху, часто в перчатках.
+   - Цифры — табличным моноширинным начертанием, чтобы столбцы не «плясали».
+   ========================================================================== */
+
+/* ── Токены ─────────────────────────────────────────────────────────────── */
+:root {
+  /* Поверхности */
+  --bg: var(--tg-theme-bg-color, #f4f5f7);
+  --surface: var(--tg-theme-secondary-bg-color, #ffffff);
+  --surface-2: rgba(120, 130, 150, 0.08);
+  --border: rgba(120, 130, 150, 0.22);
+
+  /* Текст */
+  --text: var(--tg-theme-text-color, #16191d);
+  --muted: var(--tg-theme-hint-color, #6b7280);
+
+  /* Акцент и статусы */
+  --accent: var(--tg-theme-button-color, #2f6fed);
+  --accent-text: var(--tg-theme-button-text-color, #ffffff);
+  --ok: #16a34a;
+  --warn: #d97706;
+  --danger: #dc2626;
+  --info: #0891b2;
+
+  /* Геометрия */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --tap: 48px;
+  --gap: 12px;
+  --page: 520px;
+
+  --shadow: 0 1px 2px rgba(16, 20, 30, 0.06), 0 4px 16px rgba(16, 20, 30, 0.06);
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto,
+    system-ui, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--tg-theme-bg-color, #17191c);
+    --surface: var(--tg-theme-secondary-bg-color, #21242a);
+    --surface-2: rgba(255, 255, 255, 0.06);
+    --border: rgba(255, 255, 255, 0.14);
+    --text: var(--tg-theme-text-color, #e8eaed);
+    --muted: var(--tg-theme-hint-color, #9aa1ab);
+    --ok: #34d07f;
+    --warn: #f0b429;
+    --danger: #f87171;
+    --info: #38bdf8;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* ── База ───────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.5;
+  padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: var(--page); margin: 0 auto; }
+
+/* ── Шапка экрана ───────────────────────────────────────────────────────── */
+.page-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.page-head .icon {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--accent);
+}
+
+.page-head h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.page-head p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* ── Формы ──────────────────────────────────────────────────────────────── */
+.field { margin-bottom: 14px; }
+
+.field > label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--muted);
+}
+
+.field .hint {
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+  width: 100%;
+  min-height: var(--tap);
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 16px; /* 16px = iOS не зумит при фокусе */
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  appearance: none;
+}
+
+input[type="number"] { font-variant-numeric: tabular-nums; }
+
+textarea { min-height: 88px; resize: vertical; line-height: 1.45; }
+
+select {
+  /* стрелка рисуется фоном, чтобы select выглядел одинаково на iOS/Android */
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 20px;
+  padding-right: 42px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+input:invalid:not(:placeholder-shown) { border-color: var(--danger); }
+
+/* Переключатель (чекбокс как крупная строка — удобно в перчатках) */
+.switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--tap);
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  user-select: none;
+}
+
+.switch span { font-size: 15px; font-weight: 500; }
+.switch input { width: 22px; height: 22px; accent-color: var(--accent); flex: 0 0 auto; }
+
+/* ── Карточки и секции ──────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.section { margin-bottom: 22px; }
+
+.section > h2 {
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  font-size: 13px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Блок формы, который показывается по стадии */
+.block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-md);
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.block > h3 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+/* ── Показатели (KPI) ───────────────────────────────────────────────────── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--gap);
+}
+
+.kpi {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 14px;
+  box-shadow: var(--shadow);
+}
+
+.kpi .val {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.kpi .cap {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.kpi.ok .val { color: var(--ok); }
+.kpi.danger .val { color: var(--danger); }
+.kpi.warn .val { color: var(--warn); }
+.kpi.info .val { color: var(--info); }
+
+/* ── Строки данных ──────────────────────────────────────────────────────── */
+.rows { display: flex; flex-direction: column; gap: 8px; }
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.row .name { font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
+.row .val {
+  font-size: 14px;
+  font-weight: 650;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.row.low { border-left: 3px solid var(--danger); }
+.row.mid { border-left: 3px solid var(--warn); }
+.row.good { border-left: 3px solid var(--ok); }
+
+/* ── Значки статуса ─────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--surface-2);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.badge.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.badge.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.badge.danger { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.badge.info { color: var(--info); background: color-mix(in srgb, var(--info) 14%, transparent); }
+
+.dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: 0 0 auto; }
+
+.mono { font-family: var(--mono); font-size: 0.95em; }
+
+/* ── Кнопки ─────────────────────────────────────────────────────────────── */
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 13px 18px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent-text);
+  background: var(--accent);
+  border: none;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: transform 0.1s, opacity 0.15s;
+}
+
+.btn:active { transform: scale(0.985); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.btn.secondary {
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+/* ── Пустое состояние ───────────────────────────────────────────────────── */
+.empty {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--muted);
+}
+
+.empty .icon { color: var(--muted); opacity: 0.5; margin-bottom: 12px; }
+.empty h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; color: var(--text); }
+.empty p { margin: 0; font-size: 14px; }
+
+/* ── Уведомление об ошибке ──────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 60;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: 13px 15px;
+  font-size: 14px;
+  color: #fff;
+  background: var(--danger);
+  border-radius: var(--r-md);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.28);
+  animation: toast-in 0.22s ease-out;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Экран успеха ───────────────────────────────────────────────────────── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+.overlay[hidden] { display: none; }
+
+.overlay .check { color: var(--ok); animation: pop 0.36s cubic-bezier(0.2, 1.3, 0.5, 1) both; }
+.overlay p { margin-top: 14px; font-size: 17px; font-weight: 650; text-align: center; }
+
+@keyframes pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Плавные появления — уважают системную настройку «меньше движения» */
+.fade { animation: fade 0.28s ease-out both; }
+@keyframes fade {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

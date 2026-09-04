@@ -1,55 +1,57 @@
 """
-Базовые хэндлеры — /start (авторизация + главное меню) и диспетчер Reply-кнопок.
+Базовые хэндлеры — /start (авторизация + меню по роли) и диспетчер Reply-кнопок.
 """
 
 from aiogram import F, Router
-from aiogram.filters import Command, CommandStart
-from aiogram.types import (
-    KeyboardButton,
-    Message,
-    ReplyKeyboardMarkup,
-)
-from sqlalchemy import select
+from aiogram.filters import CommandStart
+from aiogram.fsm.context import FSMContext
+from aiogram.types import KeyboardButton, Message, ReplyKeyboardMarkup
 
-from db.database import async_session
-from db.models import User, UserRole
+from bot.auth import get_effective_role
+from bot.keyboards import open_webapp
+from db.models import UserRole
 
-# Импорт функций-обработчиков из других роутеров
+# Функции-обработчики из других роутеров (каждая сама проверяет роль)
 from bot.handlers.admin import cmd_new_task
 from bot.handlers.shift_leader import cmd_work, cmd_receipt
 from bot.handlers.dosing import cmd_chemistry
 from bot.handlers.technologist import cmd_dry_materials
 from bot.handlers.lab import cmd_lab
-from bot.handlers.qc import cmd_qc_passport
+from bot.handlers.qc import cmd_qc_passport, cmd_naming
 
 router = Router(name="base")
 
-# ── Карта: роль → кнопки ────────────────────────────────────────────────────
+# ── Кнопки меню по ролям ────────────────────────────────────────────────────
+
+BTN_NEW_TASK = "📋 Новая задача"
+BTN_REPORTS = "📊 Сводка"
+BTN_WORK = "🏭 Управление цехом"
+BTN_RECEIPT = "📦 Приход сырья"
+BTN_QC = "🛂 Паспорт ОТК"
+BTN_NAMING = "🏷 Серийные номера"
+BTN_CHEMISTRY = "🧪 Мокрая химия"
+BTN_DRY = "🧵 Сухие материалы"
+BTN_LAB = "🔬 Лаборатория"
+BTN_STOCK = "📦 Склад"
+BTN_ABOUT = "ℹ️ О системе"
 
 ROLE_MENUS: dict[UserRole, list[list[str]]] = {
     UserRole.ADMIN: [
-        ["📋 Новая задача"],
-        ["📊 Отчеты"],
+        [BTN_NEW_TASK, BTN_REPORTS],
+        [BTN_WORK, BTN_STOCK],
     ],
     UserRole.SHIFT_LEADER: [
-        ["🏭 Управление цехом"],
-        ["📦 Приход сырья"],
+        [BTN_WORK],
+        [BTN_RECEIPT, BTN_STOCK],
     ],
     UserRole.QC_ENGINEER: [
-        ["🛂 Паспорта ОТК"],
+        [BTN_QC],
+        [BTN_NAMING],
     ],
-    UserRole.DOSING_OPERATOR: [
-        ["🧪 Мокрая химия"],
-    ],
-    UserRole.TECHNOLOGIST: [
-        ["🧵 Сухие материалы"],
-    ],
-    UserRole.LAB_TECHNICIAN: [
-        ["🔬 Лаборатория"],
-    ],
-    UserRole.OPERATOR: [
-        ["ℹ️ О системе"],
-    ],
+    UserRole.DOSING_OPERATOR: [[BTN_CHEMISTRY], [BTN_STOCK]],
+    UserRole.TECHNOLOGIST: [[BTN_DRY], [BTN_STOCK]],
+    UserRole.LAB_TECHNICIAN: [[BTN_LAB]],
+    UserRole.OPERATOR: [[BTN_ABOUT]],
 }
 
 ROLE_LABELS: dict[UserRole, str] = {
@@ -65,121 +67,114 @@ ROLE_LABELS: dict[UserRole, str] = {
 
 def build_keyboard(role: UserRole) -> ReplyKeyboardMarkup:
     """Строит Reply-клавиатуру по роли пользователя."""
-    buttons = ROLE_MENUS.get(role, [])
-    keyboard = [[KeyboardButton(text=btn) for btn in row] for row in buttons]
-    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    rows = ROLE_MENUS.get(role, [])
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=b) for b in row] for row in rows],
+        resize_keyboard=True,
+    )
 
 
 # ── /start ───────────────────────────────────────────────────────────────────
 
 @router.message(CommandStart())
 async def cmd_start(message: Message) -> None:
-    """Авторизация + главное меню по роли."""
+    """Авторизация и главное меню по роли."""
     tg_id = message.from_user.id
 
-    async with async_session() as session:
-        result = await session.execute(
-            select(User).where(User.telegram_id == tg_id)
-        )
-        user = result.scalar_one_or_none()
+    # Роль берём через общий резолвер: он учитывает и ADMIN_IDS
+    # (первичная загрузка), и запись в базе.
+    role = await get_effective_role(tg_id)
 
-    if not user:
+    if role is None:
         await message.answer(
-            "⛔ <b>Доступ запрещён</b>\n\n"
-            "Вы не зарегистрированы в системе.\n"
-            f"Ваш Telegram ID: <code>{tg_id}</code>\n\n"
+            "⛔ <b>Доступ закрыт</b>\n\n"
+            "Вас нет в системе или учётная запись отключена.\n\n"
+            f"Ваш Telegram ID: <code>{tg_id}</code>\n"
             "Передайте его руководителю для регистрации.",
             parse_mode="HTML",
         )
         return
 
-    if not user.is_active:
-        await message.answer(
-            "⛔ <b>Ваш аккаунт деактивирован.</b>\n\n"
-            "Обратитесь к руководству.",
-            parse_mode="HTML",
-        )
-        return
-
-    label = ROLE_LABELS.get(user.role, str(user.role.value))
-    kb = build_keyboard(user.role)
-
     await message.answer(
-        f"👋 Добро пожаловать, <b>{user.full_name}</b>!\n\n"
-        f"Роль: {label}\n\n"
-        "Выберите действие из меню ниже ⬇️",
+        f"👋 <b>КОМПОЗИТ-MES</b>\n\n"
+        f"Роль: {ROLE_LABELS.get(role, role.value)}\n\n"
+        "Выберите действие в меню ниже.",
         parse_mode="HTML",
-        reply_markup=kb,
+        reply_markup=build_keyboard(role),
     )
 
 
 # ── Диспетчер Reply-кнопок ──────────────────────────────────────────────────
+# Кнопки просто вызывают те же функции, что и команды. Проверка прав
+# живёт внутри самих функций, поэтому набрать текст кнопки вручную
+# в обход своей роли нельзя.
 
-@router.message(F.text == "📋 Новая задача")
-async def btn_new_task(message: Message) -> None:
-    from aiogram.fsm.context import FSMContext
-    # Для FSM нужен state, но при нажатии Reply-кнопки его нет в аргументах.
-    # Поэтому просто отправляем команду /new_task
-    await message.answer(
-        "📋 Для создания новой задачи используйте команду:\n"
-        "<code>/new_task</code>",
-        parse_mode="HTML",
-    )
+@router.message(F.text == BTN_NEW_TASK)
+async def btn_new_task(message: Message, state: FSMContext) -> None:
+    # Раньше кнопка лишь просила ввести /new_task вручную — теперь
+    # она сразу запускает создание задачи.
+    await cmd_new_task(message, state)
 
 
-@router.message(F.text == "📊 Отчеты")
+@router.message(F.text == BTN_REPORTS)
 async def btn_reports(message: Message) -> None:
-    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
-    from core.config import settings
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text="📈 Открыть дашборд",
-            web_app=WebAppInfo(url=f"{settings.WEB_URL}/analytics"),
-        )]
-    ])
-    await message.answer(
-        "📈 <b>Оперативная сводка производства</b>\n\n"
-        "Нажмите кнопку ниже, чтобы открыть дашборд.",
-        parse_mode="HTML",
-        reply_markup=keyboard,
+    await open_webapp(
+        message,
+        path="/analytics",
+        title="📊 Сводка производства",
+        description="Показатели выпуска и суммарный расход материалов.",
+        button="Открыть сводку",
+        roles=(UserRole.ADMIN,),
     )
 
 
-@router.message(F.text == "🏭 Управление цехом")
+@router.message(F.text == BTN_WORK)
 async def btn_work(message: Message) -> None:
     await cmd_work(message)
 
 
-@router.message(F.text == "📦 Приход сырья")
+@router.message(F.text == BTN_RECEIPT)
 async def btn_receipt(message: Message) -> None:
     await cmd_receipt(message)
 
 
-@router.message(F.text == "🛂 Паспорта ОТК")
+@router.message(F.text == BTN_QC)
 async def btn_qc(message: Message) -> None:
     await cmd_qc_passport(message)
 
 
-@router.message(F.text == "🧪 Мокрая химия")
+@router.message(F.text == BTN_NAMING)
+async def btn_naming(message: Message) -> None:
+    await cmd_naming(message)
+
+
+@router.message(F.text == BTN_CHEMISTRY)
 async def btn_chemistry(message: Message) -> None:
     await cmd_chemistry(message)
 
 
-@router.message(F.text == "🧵 Сухие материалы")
+@router.message(F.text == BTN_DRY)
 async def btn_dry_materials(message: Message) -> None:
     await cmd_dry_materials(message)
 
 
-@router.message(F.text == "🔬 Лаборатория")
+@router.message(F.text == BTN_LAB)
 async def btn_lab(message: Message) -> None:
     await cmd_lab(message)
 
 
-@router.message(F.text == "ℹ️ О системе")
+@router.message(F.text == BTN_STOCK)
+async def btn_stock(message: Message) -> None:
+    # Импорт здесь, чтобы не было кольцевой зависимости модулей
+    from bot.handlers.inventory import cmd_stock
+    await cmd_stock(message)
+
+
+@router.message(F.text == BTN_ABOUT)
 async def btn_about(message: Message) -> None:
     await message.answer(
         "ℹ️ <b>КОМПОЗИТ-MES</b>\n\n"
-        "Система управления производством GRP-труб.\n"
-        "Версия: 1.0.0",
+        "Система учёта производства стеклопластиковых труб.\n"
+        "Версия 1.0",
         parse_mode="HTML",
     )

@@ -75,6 +75,7 @@ async def get_pipe_qc_data(pipe_id: int, session: AsyncSession = Depends(get_ses
         status=pipe.status.value,
         dn=pipe.task.dn if pipe.task else None,
         serial_number=pipe.serial_number,
+        has_bell=pipe.task.has_bell if pipe.task else True,
         passport=passport,
     ).model_dump(mode="json")
 
