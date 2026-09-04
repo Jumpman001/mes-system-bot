@@ -33,24 +33,28 @@ BTN_CHEMISTRY = "🧪 Мокрая химия"
 BTN_DRY = "🧵 Сухие материалы"
 BTN_LAB = "🔬 Лаборатория"
 BTN_STOCK = "📦 Склад"
+BTN_MY_ENTRIES = "✏️ Мои записи"
+BTN_CORRECTIONS = "✅ Заявки на правку"
 BTN_ABOUT = "ℹ️ О системе"
 
 ROLE_MENUS: dict[UserRole, list[list[str]]] = {
     UserRole.ADMIN: [
         [BTN_NEW_TASK, BTN_REPORTS],
         [BTN_WORK, BTN_STOCK],
+        [BTN_CORRECTIONS],
     ],
     UserRole.SHIFT_LEADER: [
         [BTN_WORK],
         [BTN_RECEIPT, BTN_STOCK],
+        [BTN_MY_ENTRIES],
     ],
     UserRole.QC_ENGINEER: [
         [BTN_QC],
-        [BTN_NAMING],
+        [BTN_NAMING, BTN_MY_ENTRIES],
     ],
-    UserRole.DOSING_OPERATOR: [[BTN_CHEMISTRY], [BTN_STOCK]],
-    UserRole.TECHNOLOGIST: [[BTN_DRY], [BTN_STOCK]],
-    UserRole.LAB_TECHNICIAN: [[BTN_LAB]],
+    UserRole.DOSING_OPERATOR: [[BTN_CHEMISTRY], [BTN_STOCK, BTN_MY_ENTRIES]],
+    UserRole.TECHNOLOGIST: [[BTN_DRY], [BTN_STOCK, BTN_MY_ENTRIES]],
+    UserRole.LAB_TECHNICIAN: [[BTN_LAB], [BTN_MY_ENTRIES]],
     UserRole.OPERATOR: [[BTN_ABOUT]],
 }
 
@@ -168,6 +172,18 @@ async def btn_stock(message: Message) -> None:
     # Импорт здесь, чтобы не было кольцевой зависимости модулей
     from bot.handlers.inventory import cmd_stock
     await cmd_stock(message)
+
+
+@router.message(F.text == BTN_MY_ENTRIES)
+async def btn_my_entries(message: Message) -> None:
+    from bot.handlers.corrections import cmd_my_entries
+    await cmd_my_entries(message)
+
+
+@router.message(F.text == BTN_CORRECTIONS)
+async def btn_corrections(message: Message) -> None:
+    from bot.handlers.corrections import cmd_corrections
+    await cmd_corrections(message)
 
 
 @router.message(F.text == BTN_ABOUT)

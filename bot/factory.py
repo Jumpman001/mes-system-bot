@@ -26,6 +26,7 @@ from bot.handlers.lab import router as lab_router
 from bot.handlers.qc import router as qc_router
 from bot.handlers.report import router as report_router
 from bot.handlers.inventory import router as inventory_router
+from bot.handlers.corrections import router as corrections_router
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ ALL_ROUTERS = [
     qc_router,
     report_router,
     inventory_router,
+    corrections_router,
 ]
 
 # Синяя кнопка меню Telegram. Здесь только реально существующие команды.
@@ -56,6 +58,8 @@ BOT_COMMANDS = [
     BotCommand(command="new_task", description="📋 Новая задача (Админ)"),
     BotCommand(command="pipe_report", description="📑 Досье на трубу"),
     BotCommand(command="stock", description="📦 Остатки склада"),
+    BotCommand(command="my_entries", description="✏️ Мои записи и исправления"),
+    BotCommand(command="corrections", description="✅ Заявки на исправление (Админ)"),
 ]
 
 

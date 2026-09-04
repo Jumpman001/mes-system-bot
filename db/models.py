@@ -105,6 +105,22 @@ class FinalVerdict(str, enum.Enum):
     REJECTED = "rejected"   # Брак
 
 
+class CorrectionTarget(str, enum.Enum):
+    """Какую запись просят исправить."""
+    CHEMISTRY = "chemistry"          # ChemistryLog (Дозировщик)
+    DRY_MATERIAL = "dry_material"    # DryMaterialLog (Технолог)
+    LAB_TEST = "lab_test"            # LabTest (Лаборант)
+    RECEIPT = "receipt"              # MaterialReceipt (Начальник смены)
+    QC_PASSPORT = "qc_passport"      # QCPassport (ОТК)
+
+
+class CorrectionStatus(str, enum.Enum):
+    """Состояние заявки на исправление."""
+    PENDING = "pending"      # Ждёт решения администратора
+    APPROVED = "approved"    # Одобрена и применена
+    REJECTED = "rejected"    # Отклонена
+
+
 # ── Пользователи ────────────────────────────────────────────────────────────
 
 class User(Base):
@@ -629,4 +645,69 @@ class PipeNorm(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+# ── Заявки на исправление данных ────────────────────────────────────────────
+
+class CorrectionRequest(Base):
+    """
+    Заявка работника на исправление уже внесённых данных.
+
+    Зачем: записи расхода вносятся один раз и не редактируются. Если
+    работник ошибся, он НЕ может просто отправить форму заново — это
+    создало бы вторую запись и списало бы сырьё дважды. Вместо этого он
+    подаёт заявку, а применяет её только администратор.
+
+    Старое значение сохраняется здесь навсегда — получается журнал:
+    кто просил, что было, что стало, кто одобрил и почему.
+    """
+    __tablename__ = "correction_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    # Что правим
+    target: Mapped[CorrectionTarget] = mapped_column(
+        Enum(CorrectionTarget, native_enum=False), nullable=False,
+        comment="Тип записи: chemistry, dry_material, lab_test, receipt, qc_passport"
+    )
+    record_id: Mapped[int] = mapped_column(
+        Integer, nullable=False, comment="ID исправляемой записи"
+    )
+    field_name: Mapped[str] = mapped_column(
+        String(100), nullable=False, comment="Имя поля, которое меняем"
+    )
+
+    # Значения храним текстом — так одна таблица подходит для чисел,
+    # строк и флагов. При одобрении значение приводится к нужному типу.
+    old_value: Mapped[Optional[str]] = mapped_column(
+        String(200), nullable=True, comment="Значение до исправления"
+    )
+    new_value: Mapped[Optional[str]] = mapped_column(
+        String(200), nullable=True, comment="Запрошенное новое значение"
+    )
+    reason: Mapped[str] = mapped_column(
+        Text, nullable=False, comment="Причина исправления (обязательно)"
+    )
+
+    # Кто и когда попросил
+    requested_by: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, comment="Telegram ID заявителя"
+    )
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    # Решение администратора
+    status: Mapped[CorrectionStatus] = mapped_column(
+        Enum(CorrectionStatus, native_enum=False), nullable=False,
+        default=CorrectionStatus.PENDING, index=True
+    )
+    reviewed_by: Mapped[Optional[int]] = mapped_column(
+        BigInteger, nullable=True, comment="Telegram ID администратора"
+    )
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    review_comment: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True, comment="Комментарий администратора при отклонении"
     )

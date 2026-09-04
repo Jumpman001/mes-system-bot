@@ -6,7 +6,7 @@ POST /api/dosing — сохранение ChemistryLog в БД
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
@@ -17,6 +17,11 @@ from db.models import ChemistryLog, ChemistryStage, Pipe, PipeStatus, User, User
 from web.auth import require_roles
 from web.schemas import ChemistryLogCreate
 from web.services.stock_service import deduct_chemistry
+from web.services.validation_service import (
+    DuplicateEntry,
+    check_chemistry_sanity,
+    ensure_no_duplicate_chemistry,
+)
 
 router = APIRouter()
 
@@ -57,6 +62,29 @@ async def create_chemistry_log(
     user: User = Depends(require_roles(UserRole.DOSING_OPERATOR)),
 ):
     """Сохраняет запись расхода химии в БД и списывает со склада."""
+    values = {
+        "resin_kg": data.resin_kg,
+        "cobalt_kg": data.cobalt_kg,
+        "peroxide_kg": data.peroxide_kg,
+    }
+
+    # Защита 1: не даём внести расход по одной трубе и стадии дважды
+    try:
+        await ensure_no_duplicate_chemistry(session, data.pipe_id, data.stage)
+    except DuplicateEntry as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+    # Защита 2 и 3: отклонение от нормы и нехватка склада — просим подтвердить
+    if not data.confirmed:
+        warnings = await check_chemistry_sanity(
+            session, data.pipe_id, data.stage, values
+        )
+        if warnings:
+            raise HTTPException(
+                status_code=422,
+                detail={"needs_confirmation": True, "warnings": warnings},
+            )
+
     log = ChemistryLog(
         pipe_id=data.pipe_id,
         stage=ChemistryStage(data.stage),
@@ -68,10 +96,6 @@ async def create_chemistry_log(
     session.add(log)
 
     # Автоматически списываем со склада
-    await deduct_chemistry(session, data.stage, {
-        "resin_kg": data.resin_kg,
-        "cobalt_kg": data.cobalt_kg,
-        "peroxide_kg": data.peroxide_kg,
-    })
+    await deduct_chemistry(session, data.stage, values)
 
     return {"status": "ok"}

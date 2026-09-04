@@ -26,6 +26,9 @@ class ChemistryLogCreate(BaseModel):
     resin_kg: float
     cobalt_kg: float
     peroxide_kg: float
+    # Работник увидел предупреждения (отклонение от нормы, нехватка склада)
+    # и осознанно подтвердил ввод.
+    confirmed: bool = False
 
 
 class DryMaterialLogCreate(BaseModel):
@@ -45,6 +48,8 @@ class DryMaterialLogCreate(BaseModel):
     ud250_m: float | None = None
     sand_gauze_m: float | None = None
 
+    confirmed: bool = False
+
 
 class LabTestCreate(BaseModel):
     """Схема ввода лабораторных тестов (Лаборант)."""
@@ -61,6 +66,8 @@ class LabTestCreate(BaseModel):
     absorbency_result: str | None = None
     is_homogeneous: bool | None = None
     theoretical_resin_percent: float | None = None
+
+    confirmed: bool = False
 
 
 class QCPassportUpdate(BaseModel):
@@ -130,3 +137,23 @@ class PipeQCData(BaseModel):
     # предупреждает об этом перед выдачей разрешения.
     has_bell: bool = True
     passport: QCPassportData | None = None
+
+
+# ── Заявки на исправление ────────────────────────────────────────────────────
+
+class CorrectionCreate(BaseModel):
+    """Заявка работника на исправление своей записи."""
+    target: str        # chemistry, dry_material, lab_test, receipt, qc_passport
+    record_id: int
+    field_name: str
+    new_value: str | None = None
+    reason: str        # причина обязательна — она уходит администратору
+
+
+class MyEntry(BaseModel):
+    """Строка списка «мои записи» (что работник вносил и может исправить)."""
+    target: str
+    record_id: int
+    title: str                    # например «Труба 2026-001 · Лайнер»
+    entered_at: str
+    fields: dict[str, float | str | bool | None]

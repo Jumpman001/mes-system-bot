@@ -6,7 +6,7 @@ POST /api/dry_materials — сохранение DryMaterialLog в БД
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
@@ -17,6 +17,11 @@ from db.models import DryMaterialLog, DryMaterialStage, Pipe, PipeStatus, User, 
 from web.auth import require_roles
 from web.schemas import DryMaterialLogCreate
 from web.services.stock_service import deduct_dry_materials
+from web.services.validation_service import (
+    DuplicateEntry,
+    check_dry_sanity,
+    ensure_no_duplicate_dry,
+)
 
 router = APIRouter()
 
@@ -57,6 +62,32 @@ async def create_dry_material_log(
     user: User = Depends(require_roles(UserRole.TECHNOLOGIST)),
 ):
     """Сохраняет запись расхода сухих материалов в БД и списывает со склада."""
+    values = {
+        "polyester_gauze_m": data.polyester_gauze_m,
+        "veil_m": data.veil_m,
+        "stitched_mat_kg": data.stitched_mat_kg,
+        "ud300_m": data.ud300_m,
+        "fiberglass_2400tex_kg": data.fiberglass_2400tex_kg,
+        "sand_kg": data.sand_kg,
+        "ud250_m": data.ud250_m,
+        "sand_gauze_m": data.sand_gauze_m,
+    }
+
+    # Защита 1: повторный ввод по той же трубе и стадии
+    try:
+        await ensure_no_duplicate_dry(session, data.pipe_id, data.stage)
+    except DuplicateEntry as e:
+        raise HTTPException(status_code=409, detail=str(e))
+
+    # Защита 2 и 3: отклонение от нормы и нехватка склада
+    if not data.confirmed:
+        warnings = await check_dry_sanity(session, data.pipe_id, data.stage, values)
+        if warnings:
+            raise HTTPException(
+                status_code=422,
+                detail={"needs_confirmation": True, "warnings": warnings},
+            )
+
     log = DryMaterialLog(
         pipe_id=data.pipe_id,
         stage=DryMaterialStage(data.stage),
@@ -73,15 +104,6 @@ async def create_dry_material_log(
     session.add(log)
 
     # Автоматически списываем со склада
-    await deduct_dry_materials(session, {
-        "polyester_gauze_m": data.polyester_gauze_m,
-        "veil_m": data.veil_m,
-        "stitched_mat_kg": data.stitched_mat_kg,
-        "ud300_m": data.ud300_m,
-        "fiberglass_2400tex_kg": data.fiberglass_2400tex_kg,
-        "sand_kg": data.sand_kg,
-        "ud250_m": data.ud250_m,
-        "sand_gauze_m": data.sand_gauze_m,
-    })
+    await deduct_dry_materials(session, values)
 
     return {"status": "ok"}
