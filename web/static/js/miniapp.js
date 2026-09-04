@@ -40,10 +40,13 @@ const MES = (() => {
     const el = document.createElement("div");
     el.className = "toast";
     el.setAttribute("role", "alert");
+    // Иконка circle-alert из набора Lucide (lucide.dev, лицензия ISC)
     el.innerHTML =
       '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
-      'stroke-width="2" stroke-linecap="round" style="flex:0 0 auto;margin-top:1px">' +
-      '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16.5v.01"/></svg><span></span>';
+      'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ' +
+      'style="flex:0 0 auto;margin-top:1px">' +
+      '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>' +
+      "</svg><span></span>";
     el.querySelector("span").textContent = text;
     document.body.appendChild(el);
     setTimeout(() => el.remove(), 5000);

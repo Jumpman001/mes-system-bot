@@ -200,14 +200,14 @@ input:invalid:not(:placeholder-shown) { border-color: var(--danger); }
 
 .section { margin-bottom: 22px; }
 
+/* Обычный регистр, а не КАПС: заглавная кириллица читается заметно
+   тяжелее латиницы, а экран смотрят быстро и в цеху. */
 .section > h2 {
   margin: 0 0 10px;
   padding-bottom: 8px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 650;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
+  color: var(--text);
   border-bottom: 1px solid var(--border);
 }
 
@@ -377,24 +377,26 @@ input:invalid:not(:placeholder-shown) { border-color: var(--danger); }
 }
 
 /* ── Экран успеха ───────────────────────────────────────────────────────── */
+/* Сплошная подложка вместо размытия — экран успеха должен просто
+   закрыть форму, а не притягивать внимание эффектом. */
 .overlay {
   position: fixed;
   inset: 0;
   z-index: 70;
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--bg) 82%, transparent);
-  backdrop-filter: blur(6px);
+  background: var(--bg);
 }
 
 .overlay[hidden] { display: none; }
 
-.overlay .check { color: var(--ok); animation: pop 0.36s cubic-bezier(0.2, 1.3, 0.5, 1) both; }
+/* Появление без «пружины»: короткое и обычное сглаживание */
+.overlay .check { color: var(--ok); animation: pop 0.16s ease-out both; }
 .overlay p { margin-top: 14px; font-size: 17px; font-weight: 650; text-align: center; }
 
 @keyframes pop {
-  0% { transform: scale(0.4); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
+  from { transform: scale(0.92); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
 
 /* Плавные появления — уважают системную настройку «меньше движения» */
